@@ -513,6 +513,21 @@ superAdminRoutes.post(
       })
       createdSubscriptionId = sub.id
 
+      // Auto-create an active academic year so the school can immediately create classes/students
+      const yearName = req.body.activeAcademicYearName || '2025-2026'
+      const [startYearStr, endYearStr] = yearName.split('-')
+      const startYear = parseInt(startYearStr, 10) || new Date().getFullYear()
+      const endYear = parseInt(endYearStr, 10) || startYear + 1
+      await tx.academicYear.create({
+        data: {
+          institutionId: created.id,
+          name: yearName,
+          startsAt: new Date(`${startYear}-09-01`),
+          endsAt: new Date(`${endYear}-06-30`),
+          isActive: true
+        }
+      })
+
       if (isEnterprise && centralAdmin && centralAdminPhone) {
         await tx.allowedPhone.create({
           data: {
@@ -624,6 +639,104 @@ superAdminRoutes.post(
     }
 
     res.status(201).json({ institution })
+  })
+)
+
+superAdminRoutes.patch(
+  '/institutions/:id/subscription',
+  validate(
+    z.object({
+      params: z.object({ id: z.string() }),
+      body: z.object({
+        planId: z.string(),
+        billingCycle: z.nativeEnum(BillingCycle),
+        status: z.nativeEnum(InstitutionStatus).optional(),
+        schoolYears: z.number().int().positive().default(1),
+        generateInvoice: z.boolean().default(false)
+      })
+    })
+  ),
+  audit('UPDATE_PLAN', 'Institution'),
+  asyncHandler(async (req, res) => {
+    const institution = await prisma.institution.findFirst({ where: { id: req.params.id } })
+    if (!institution) throw notFound('Institution introuvable')
+
+    const plan = await prisma.plan.findFirst({ where: { id: req.body.planId, isActive: true } })
+    if (!plan) throw badRequest('Plan introuvable ou inactif')
+
+    const schoolYears = req.body.schoolYears ?? 1
+    const startsAt = new Date()
+    const months = computePeriodMonths(req.body.billingCycle, schoolYears, plan.schoolYearMonths)
+    const endsAt = new Date(startsAt)
+    endsAt.setMonth(endsAt.getMonth() + months)
+
+    const newStatus = req.body.status ?? institution.status
+
+    // Update or create subscription
+    const existingSub = await prisma.subscription.findFirst({
+      where: { institutionId: institution.id },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    let sub
+    if (existingSub) {
+      sub = await prisma.subscription.update({
+        where: { id: existingSub.id },
+        data: {
+          planId: plan.id,
+          cycle: req.body.billingCycle,
+          schoolYears,
+          periodMonths: months,
+          discountPercent: computeDiscount(plan, schoolYears, req.body.billingCycle),
+          startsAt,
+          endsAt,
+          status: newStatus === InstitutionStatus.TRIAL ? SubscriptionStatus.TRIALING
+            : newStatus === InstitutionStatus.ACTIVE ? SubscriptionStatus.ACTIVE
+            : SubscriptionStatus.CANCELED
+        }
+      })
+    } else {
+      sub = await prisma.subscription.create({
+        data: {
+          institutionId: institution.id,
+          planId: plan.id,
+          cycle: req.body.billingCycle,
+          schoolYears,
+          periodMonths: months,
+          discountPercent: computeDiscount(plan, schoolYears, req.body.billingCycle),
+          startsAt,
+          endsAt,
+          status: newStatus === InstitutionStatus.ACTIVE ? SubscriptionStatus.ACTIVE : SubscriptionStatus.TRIALING
+        }
+      })
+    }
+
+    // Update institution status and plan reference
+    await prisma.institution.update({
+      where: { id: institution.id },
+      data: { status: newStatus }
+    })
+
+    // Optionally generate a new invoice
+    if (req.body.generateInvoice) {
+      const discountPercent = computeDiscount(plan, schoolYears, req.body.billingCycle)
+      const amount = computeAmount(plan, req.body.billingCycle, schoolYears, discountPercent)
+      if (amount > 0) {
+        const dueDate = new Date()
+        dueDate.setDate(dueDate.getDate() + 15)
+        await createSaaSInvoice({
+          institutionId: institution.id,
+          subscriptionId: sub.id,
+          planId: plan.id,
+          amount,
+          currency: institution.currency || 'XOF',
+          dueDate,
+          notes: `Changement de plan → ${plan.name} (${req.body.billingCycle})`
+        })
+      }
+    }
+
+    res.json({ ok: true, subscriptionId: sub.id })
   })
 )
 

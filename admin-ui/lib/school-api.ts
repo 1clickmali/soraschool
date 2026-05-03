@@ -855,6 +855,7 @@ export interface Classroom {
   description?: string;
   teacherCount?: number;
   studentCount?: number;
+  _count?: { students: number; assignments?: number };
   createdAt: string;
 }
 

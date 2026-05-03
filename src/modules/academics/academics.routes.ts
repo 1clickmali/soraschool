@@ -184,7 +184,7 @@ academicsRoutes.get(
 
     const classes = await prisma.classroom.findMany({
       where,
-      include: { gradeLevel: true, academicYear: true, mainTeacher: true, _count: { select: { students: true } } },
+      include: { gradeLevel: true, academicYear: true, mainTeacher: true, _count: { select: { students: true, assignments: true } } },
       orderBy: { name: 'asc' }
     })
     res.json({ classes })

@@ -436,6 +436,8 @@ export const superAdminApi = {
   },
   deleteInstitution: (id: string) =>
     api.delete<void>(`/api/super-admin/institutions/${id}`),
+  updateInstitutionSubscription: (id: string, data: { planId: string; billingCycle: string; status?: string; schoolYears?: number; generateInvoice?: boolean }) =>
+    api.patch<{ ok: boolean; subscriptionId: string }>(`/api/super-admin/institutions/${id}/subscription`, data),
   establishments: (institutionId: string) =>
     api.get<{ institution: BackendInstitution; establishments: Establishment[] }>(`/api/super-admin/institutions/${institutionId}/establishments`),
   createEstablishment: (institutionId: string, data: CreateEstablishmentInput) =>

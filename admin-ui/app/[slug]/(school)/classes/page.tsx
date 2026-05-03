@@ -188,11 +188,11 @@ export default function ClassesPage() {
                 <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/[0.06]">
                   <div className="flex items-center gap-1.5 text-xs text-gray-400">
                     <Users className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>{cls.studentCount ?? 0} élèves</span>
+                    <span>{cls._count?.students ?? cls.studentCount ?? 0} élèves</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-gray-400">
                     <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-                    <span>{cls.teacherCount ?? 0} enseignants</span>
+                    <span>{cls._count?.assignments ?? cls.teacherCount ?? 0} enseignants</span>
                   </div>
                   {cls.capacity && (
                     <div className="ml-auto text-xs text-gray-600">

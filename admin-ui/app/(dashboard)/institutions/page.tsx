@@ -22,6 +22,7 @@ import {
   MapPin,
   CalendarDays,
   FileText,
+  RefreshCw,
 } from "lucide-react";
 import { StatusBadge, TierBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -183,9 +184,10 @@ interface RowMenuProps {
   onView: (institution: Institution) => void;
   onStatusChange: (id: string, status: string) => void;
   onDelete: (id: string) => void;
+  onEditPlan: (institution: Institution) => void;
 }
 
-function RowMenu({ institution, onView, onStatusChange, onDelete }: RowMenuProps) {
+function RowMenu({ institution, onView, onStatusChange, onDelete, onEditPlan }: RowMenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -246,6 +248,16 @@ function RowMenu({ institution, onView, onStatusChange, onDelete }: RowMenuProps
                 <PauseCircle className="w-3.5 h-3.5" />
                 {institution.status === "active" ? "Suspendre" : "Activer"}
               </button>
+              <button
+                onClick={() => {
+                  onEditPlan(institution);
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-soraBlue hover:bg-soraBlue/10 hover:text-blue-300 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Modifier le plan
+              </button>
               <div className="h-px bg-white/8 my-1" />
               <button
                 onClick={() => {
@@ -262,6 +274,110 @@ function RowMenu({ institution, onView, onStatusChange, onDelete }: RowMenuProps
         </>
       )}
     </div>
+  );
+}
+
+function EditPlanModal({ institution, onClose, onUpdated }: {
+  institution: Institution | null;
+  onClose: () => void;
+  onUpdated: (inst: Institution) => void;
+}) {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [planId, setPlanId] = useState("");
+  const [billingCycle, setBillingCycle] = useState("MONTHLY");
+  const [status, setStatus] = useState("ACTIVE");
+  const [schoolYears, setSchoolYears] = useState("1");
+  const [generateInvoice, setGenerateInvoice] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-soraBlue/50 transition-colors text-sm";
+  const labelCls = "block text-xs font-medium text-gray-400 mb-1.5";
+
+  useEffect(() => {
+    if (!institution) return;
+    superAdminApi.plans().then(({ data }) => setPlans(data?.plans || []));
+    setPlanId(institution.plan?.id || "");
+    setStatus(institution.status === "active" ? "ACTIVE" : institution.status === "trial" ? "TRIAL" : "SUSPENDED");
+  }, [institution]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!institution) return;
+    setLoading(true); setError(null);
+    const { error: err } = await superAdminApi.updateInstitutionSubscription(institution.id, {
+      planId, billingCycle, status,
+      schoolYears: Number(schoolYears),
+      generateInvoice
+    });
+    setLoading(false);
+    if (err) { setError(err); return; }
+    onUpdated({ ...institution, status: status.toLowerCase() as Institution["status"] });
+    onClose();
+  };
+
+  const selectedPlan = plans.find(p => p.id === planId);
+
+  return (
+    <Modal isOpen={!!institution} onClose={onClose} title={`Modifier le plan — ${institution?.name}`} size="sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className={labelCls}>Nouveau plan *</label>
+          <select required value={planId} onChange={e => setPlanId(e.target.value)} className={inputCls}>
+            <option value="" className="bg-soraCard">— Choisir un plan —</option>
+            {plans.map(p => (
+              <option key={p.id} value={p.id} className="bg-soraCard">
+                {p.name} — {p.tier} ({p.monthlyPrice.toLocaleString()} FCFA/mois)
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Cycle de facturation</label>
+          <select value={billingCycle} onChange={e => setBillingCycle(e.target.value)} className={inputCls}>
+            <option value="MONTHLY" className="bg-soraCard">Mensuelle</option>
+            <option value="ANNUAL" className="bg-soraCard">Annuelle (−10%)</option>
+            <option value="SCHOOL_YEAR" className="bg-soraCard">Année scolaire</option>
+            <option value="MULTI_YEAR" className="bg-soraCard">Multi-années (−20%)</option>
+          </select>
+        </div>
+        {(billingCycle === "SCHOOL_YEAR" || billingCycle === "MULTI_YEAR") && (
+          <div>
+            <label className={labelCls}>Nombre d&apos;années scolaires</label>
+            <input type="number" min="1" max="5" value={schoolYears} onChange={e => setSchoolYears(e.target.value)} className={inputCls} />
+          </div>
+        )}
+        <div>
+          <label className={labelCls}>Statut</label>
+          <select value={status} onChange={e => setStatus(e.target.value)} className={inputCls}>
+            <option value="ACTIVE" className="bg-soraCard">Actif</option>
+            <option value="TRIAL" className="bg-soraCard">Essai gratuit</option>
+            <option value="PENDING_PAYMENT" className="bg-soraCard">En attente de paiement</option>
+            <option value="SUSPENDED" className="bg-soraCard">Suspendu</option>
+          </select>
+        </div>
+        {selectedPlan && (
+          <div className="rounded-xl border border-soraBlue/20 bg-soraBlue/5 px-4 py-3 text-sm">
+            <p className="text-soraBlue font-semibold">{selectedPlan.name} — {selectedPlan.tier}</p>
+            <p className="text-gray-400 mt-1">
+              {billingCycle === "MONTHLY" && `${selectedPlan.monthlyPrice.toLocaleString()} FCFA/mois`}
+              {billingCycle === "ANNUAL" && `${selectedPlan.annualPrice.toLocaleString()} FCFA/an`}
+              {(billingCycle === "SCHOOL_YEAR" || billingCycle === "MULTI_YEAR") && `${selectedPlan.annualPrice.toLocaleString()} FCFA × ${schoolYears} an(s)`}
+            </p>
+          </div>
+        )}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={generateInvoice} onChange={e => setGenerateInvoice(e.target.checked)}
+            className="w-4 h-4 rounded accent-soraBlue" />
+          <span className="text-sm text-gray-300">Générer une nouvelle facture SaaS</span>
+        </label>
+        {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>}
+        <div className="flex gap-3 pt-2">
+          <Button variant="secondary" type="button" onClick={onClose} className="flex-1">Annuler</Button>
+          <Button type="submit" loading={loading} className="flex-1">Enregistrer</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -759,6 +875,7 @@ export default function InstitutionsPage() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Institution | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<Institution | null>(null);
+  const [editPlanTarget, setEditPlanTarget] = useState<Institution | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
@@ -954,6 +1071,7 @@ export default function InstitutionsPage() {
                         onView={setDetailsTarget}
                         onStatusChange={handleStatusChange}
                         onDelete={(id) => setDeleteTarget(institutions.find((i) => i.id === id) || null)}
+                        onEditPlan={setEditPlanTarget}
                       />
                     </td>
                   </tr>
@@ -1022,6 +1140,15 @@ export default function InstitutionsPage() {
       <InstitutionDetailsModal
         institution={detailsTarget}
         onClose={() => setDetailsTarget(null)}
+      />
+
+      <EditPlanModal
+        institution={editPlanTarget}
+        onClose={() => setEditPlanTarget(null)}
+        onUpdated={(updated) => {
+          setInstitutions((prev) => prev.map((i) => i.id === updated.id ? { ...i, ...updated } : i));
+          setEditPlanTarget(null);
+        }}
       />
 
       {/* Delete confirmation modal */}
