@@ -423,6 +423,7 @@ model SaaSPayment {
   currency       String          @default("XOF")
   provider       PaymentProvider
   transactionRef String?
+  receiptUrl     String?
   status         PaymentStatus   @default(PENDING)
   paidAt         DateTime?
   rawPayload     Json?
@@ -432,8 +433,8 @@ model SaaSPayment {
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   invoice      SaaSInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
-  @@index([institutionId])
-  @@index([status])
+  @@unique([institutionId, transactionRef])
+  @@index([institutionId, status, createdAt])
   @@index([invoiceId])
 }
 
@@ -1200,6 +1201,8 @@ model Invoice {
 
   @@unique([institutionId, number])
   @@index([institutionId, studentId])
+  @@index([institutionId, status])
+  @@index([institutionId, dueDate])
 }
 
 model Payment {

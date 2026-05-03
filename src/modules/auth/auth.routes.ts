@@ -50,6 +50,14 @@ const otpVerifyLimiter = rateLimit({
   }
 })
 
+const refreshLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de tentatives de renouvellement de session.' } }
+})
+
 const requestOtpSchema = z.object({
   body: z.object({
     phone: z.string().min(6),
@@ -262,6 +270,7 @@ authRoutes.post(
 
 authRoutes.post(
   '/refresh',
+  refreshLimiter,
   asyncHandler(async (req, res) => {
     const refreshToken = String(req.body.refreshToken ?? '')
     if (!refreshToken) throw unauthorized('Refresh token requis')

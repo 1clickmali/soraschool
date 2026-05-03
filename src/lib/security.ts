@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import type { UserRole } from '@prisma/client'
@@ -73,7 +74,7 @@ export function verifyRefreshToken(token: string) {
 }
 
 export function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return randomInt(100000, 1000000).toString()
 }
 
 export function generateMatricule(prefix: string, count: number) {

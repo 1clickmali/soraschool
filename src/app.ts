@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import pinoHttp from 'pino-http'
 import swaggerUi from 'swagger-ui-express'
-import { isCorsOriginAllowed } from './config/env'
+import { env, isCorsOriginAllowed } from './config/env'
 import { swaggerSpec } from './config/swagger'
 import { logger } from './lib/logger'
 import { ApiError, errorHandler } from './lib/errors'
@@ -103,7 +103,9 @@ export function createApp() {
   })
 
   app.use('/api/platform', platformRoutes)
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+  if (env.NODE_ENV !== 'production') {
+    app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+  }
   app.use('/api/auth', authRoutes)
   app.use('/api/super-admin', superAdminRoutes)
   app.use('/api/central-admin', centralAdminRoutes)

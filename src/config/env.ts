@@ -46,12 +46,12 @@ export function isCorsOriginAllowed(origin?: string) {
   try {
     const { hostname, port } = new URL(origin);
 
-    // Always allow Vercel deployment domains
-    if (hostname.endsWith('.vercel.app')) return true;
-    // Always allow Railway deployment domains
-    if (hostname.endsWith('.railway.app')) return true;
-
+    // En production : uniquement les origines explicitement listées dans CORS_ORIGIN
     if (env.NODE_ENV === 'production') return false;
+
+    // En dev/staging : autoriser les domaines Vercel/Railway pour les previews
+    if (hostname.endsWith('.vercel.app')) return true;
+    if (hostname.endsWith('.railway.app')) return true;
 
     const isPrivateLan =
       hostname === 'localhost' ||
