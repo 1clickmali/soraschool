@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Contrat d'Enseignement — {{etablissement_nom}}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Times New Roman", Times, serif; font-size: 10pt; color: #1a1a1a; background: white; line-height: 1.5; }
+
+  /* ── PAGE A4 ─────────────────────────────────────────── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 18mm 20mm 16mm;
+    background: white;
+  }
+
+  /* ── EN-TÊTE ─────────────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 3px double {{primary_color}};
+  }
+
+  .header-logo {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+
+  .header-logo-placeholder {
+    width: 70px;
+    height: 70px;
+    background: {{primary_color}};
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 900;
+    color: white;
+    flex-shrink: 0;
+    letter-spacing: -1px;
+  }
+
+  .header-center { flex: 1; text-align: center; }
+  .header-school-name {
+    font-size: 13pt;
+    font-weight: 900;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    line-height: 1.2;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .header-school-meta {
+    font-size: 8pt;
+    color: #555;
+    margin-top: 3px;
+    line-height: 1.6;
+  }
+  .header-doc-type {
+    font-size: 8pt;
+    font-weight: 700;
+    color: {{accent_color}};
+    background: {{primary_color}};
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-top: 5px;
+    font-family: Arial, Helvetica, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .header-right { text-align: right; min-width: 110px; font-family: Arial, sans-serif; }
+  .header-ref { font-size: 7.5pt; color: #888; line-height: 1.7; }
+
+  /* ── BANDE TITRE ─────────────────────────────────────── */
+  .contract-title {
+    text-align: center;
+    margin: 14px 0 16px;
+  }
+  .contract-title h1 {
+    font-size: 15pt;
+    font-weight: 900;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-family: Arial, Helvetica, sans-serif;
+    border-bottom: 2px solid {{accent_color}};
+    display: inline-block;
+    padding-bottom: 4px;
+  }
+  .contract-title .contract-subtitle {
+    font-size: 9pt;
+    color: #555;
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .contract-ref-band {
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    border-left: 3px solid {{primary_color}};
+    padding: 5px 10px;
+    font-family: Arial, sans-serif;
+    font-size: 8pt;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    border-radius: 0 3px 3px 0;
+  }
+
+  /* ── ARTICLES ────────────────────────────────────────── */
+  .article {
+    margin-bottom: 12px;
+  }
+
+  .article-title {
+    font-size: 10pt;
+    font-weight: 900;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    font-family: Arial, Helvetica, sans-serif;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid {{accent_color}};
+    letter-spacing: 0.5px;
+  }
+
+  .article-body {
+    font-size: 9.5pt;
+    text-align: justify;
+    line-height: 1.6;
+    color: #222;
+  }
+
+  /* ── PARTIES ─────────────────────────────────────────── */
+  .parties-box {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+  }
+
+  .partie {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #ddd;
+  }
+  .partie:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+  .partie-role {
+    font-size: 8pt;
+    font-weight: 900;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    font-family: Arial, sans-serif;
+    letter-spacing: 0.8px;
+    margin-bottom: 3px;
+  }
+  .partie-name {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 2px;
+  }
+  .partie-details {
+    font-size: 8.5pt;
+    color: #555;
+    line-height: 1.5;
+  }
+
+  /* ── DONNÉES CONTRAT ─────────────────────────────────── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 9pt;
+  }
+  .data-table tr:nth-child(even) td { background: #f9f9f9; }
+  .data-table td {
+    padding: 5px 8px;
+    border: 1px solid #e0e0e0;
+    vertical-align: top;
+  }
+  .data-table td:first-child {
+    font-weight: 700;
+    color: #444;
+    width: 38%;
+    background: #f4f4f4;
+    font-family: Arial, sans-serif;
+    font-size: 8.5pt;
+  }
+  .data-table td:last-child {
+    color: {{primary_color}};
+    font-weight: 600;
+  }
+
+  /* ── RÉMUNÉRATION ────────────────────────────────────── */
+  .remuneration-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin: 8px 0;
+  }
+  .remuneration-table th {
+    background: {{primary_color}};
+    color: white;
+    padding: 5px 8px;
+    text-align: left;
+    font-family: Arial, sans-serif;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .remuneration-table td {
+    border: 1px solid #e0e0e0;
+    padding: 5px 8px;
+    vertical-align: middle;
+  }
+  .remuneration-table tr:nth-child(even) td { background: #f9f9f9; }
+  .remuneration-table .amount {
+    font-weight: 700;
+    color: {{primary_color}};
+    text-align: right;
+    font-family: monospace;
+  }
+  .remuneration-table .total-row td {
+    background: {{accent_color}};
+    font-weight: 900;
+    font-size: 9.5pt;
+  }
+
+  /* ── CLAUSES ─────────────────────────────────────────── */
+  .clause-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0;
+  }
+  .clause-list li {
+    padding: 3px 0 3px 16px;
+    position: relative;
+    font-size: 9pt;
+    text-align: justify;
+    line-height: 1.5;
+    border-bottom: 1px dotted #eee;
+  }
+  .clause-list li::before {
+    content: "•";
+    position: absolute;
+    left: 4px;
+    color: {{accent_color}};
+    font-weight: 900;
+  }
+
+  /* ── SIGNATURES ──────────────────────────────────────── */
+  .signatures-section {
+    margin-top: 18px;
+    border-top: 2px solid {{primary_color}};
+    padding-top: 12px;
+  }
+
+  .signatures-title {
+    text-align: center;
+    font-size: 9pt;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    font-family: Arial, sans-serif;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+
+  .signatures-row {
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+  }
+
+  .sig-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .sig-role {
+    font-size: 8pt;
+    font-weight: 700;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    font-family: Arial, sans-serif;
+    letter-spacing: 0.8px;
+    text-align: center;
+  }
+
+  .sig-zone {
+    width: 100%;
+    height: 60px;
+    border: 1px dashed #bbb;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+
+  .sig-name-line {
+    width: 100%;
+    border-top: 1px solid #ccc;
+    font-size: 8pt;
+    color: #888;
+    text-align: center;
+    padding-top: 3px;
+  }
+
+  .sig-date {
+    font-size: 7.5pt;
+    color: #aaa;
+    font-style: italic;
+  }
+
+  .sig-stamp {
+    width: 65px;
+    height: 65px;
+    border: 2px dashed {{primary_color}};
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 6pt;
+    font-weight: 700;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    text-align: center;
+    opacity: 0.3;
+    font-family: Arial, sans-serif;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── PIED DE PAGE ────────────────────────────────────── */
+  .page-footer {
+    position: fixed;
+    bottom: 12mm;
+    left: 20mm;
+    right: 20mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #ddd;
+    padding-top: 4px;
+    font-size: 7pt;
+    color: #aaa;
+    font-family: Arial, sans-serif;
+  }
+
+  .mention-confidentiel {
+    background: #fff8e1;
+    border: 1px solid #f59e0b;
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 7.5pt;
+    color: #92400e;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 10px 0;
+  }
+
+  /* ── BREAK PAGE ──────────────────────────────────────── */
+  .page-break { page-break-before: always; }
+  @media print { .page-break { page-break-before: always; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ EN-TÊTE ══════════════════════════════════════════ -->
+  <div class="header">
+    {{#if logo_ecole}}
+    <img class="header-logo" src="{{logo_ecole}}" alt="Logo">
+    {{else}}
+    <div class="header-logo-placeholder">{{acronyme}}</div>
+    {{/if}}
+
+    <div class="header-center">
+      <div class="header-school-name">{{etablissement_nom}}</div>
+      <div class="header-school-meta">
+        {{etablissement_adresse}}<br>
+        Tél. {{etablissement_telephone}} — {{etablissement_email}}<br>
+        Autorisation : {{autorisation_ministerielle}}
+      </div>
+      <span class="header-doc-type">Contrat d'Enseignement</span>
+    </div>
+
+    <div class="header-right">
+      <div class="header-ref">
+        <strong>Réf. :</strong> {{numero_contrat}}<br>
+        <strong>A.S. :</strong> {{annee_scolaire}}<br>
+        <strong>Du :</strong> {{date_debut}}<br>
+        <strong>Au :</strong> {{date_fin}}
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TITRE DU CONTRAT ══════════════════════════════════ -->
+  <div class="contract-title">
+    <h1>Contrat d'Enseignement</h1>
+    <div class="contract-subtitle">Établissement Scolaire Privé — Année scolaire {{annee_scolaire}}</div>
+  </div>
+
+  <div class="contract-ref-band">
+    <span>Contrat N° <strong>{{numero_contrat}}</strong></span>
+    <span>Type : <strong>{{type_contrat}}</strong></span>
+    <span>Durée : <strong>{{duree_contrat}}</strong></span>
+    <span>Signé le : <strong>{{date_signature}}</strong></span>
+  </div>
+
+  <div class="mention-confidentiel">
+    DOCUMENT CONFIDENTIEL — À conserver par les deux parties — Ne pas reproduire sans autorisation
+  </div>
+
+  <!-- ══ PARTIES CONTRACTANTES ══════════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Préambule — Parties contractantes</div>
+    <div class="parties-box">
+
+      <div class="partie">
+        <div class="partie-role">L'Employeur</div>
+        <div class="partie-name">{{etablissement_nom}}</div>
+        <div class="partie-details">
+          Établissement scolaire privé — {{etablissement_adresse}}<br>
+          Représenté par : <strong>{{directeur_nom}}</strong>, Directeur(trice)<br>
+          Tél. {{etablissement_telephone}} — Autorisation : {{autorisation_ministerielle}}
+        </div>
+      </div>
+
+      <div class="partie">
+        <div class="partie-role">L'Enseignant(e)</div>
+        <div class="partie-name">{{professeur_nom_complet}}</div>
+        <div class="partie-details">
+          Né(e) le {{date_naissance_prof}} à {{lieu_naissance_prof}}<br>
+          N° CNI / Passeport : <strong>{{numero_piece_identite}}</strong><br>
+          Adresse : {{adresse_professeur}}<br>
+          Téléphone : {{telephone_professeur}} — Email : {{email_professeur}}
+        </div>
+      </div>
+
+    </div>
+    <div class="article-body">
+      Les parties désignées ci-dessus ont convenu et arrêté les conditions du présent contrat d'enseignement conformément aux dispositions du Code du Travail en vigueur et à la réglementation applicable aux établissements scolaires privés.
+    </div>
+  </div>
+
+  <!-- ══ ART. 1 : OBJET ════════════════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 1 — Objet du contrat</div>
+    <div class="article-body">
+      L'établissement engage l'enseignant(e) aux fins d'assurer les enseignements et tâches pédagogiques ci-après définies, pour le compte et sous l'autorité de la Direction de l'établissement.
+    </div>
+    <table class="data-table" style="margin-top:8px;">
+      <tr><td>Matière(s) enseignée(s)</td><td>{{disciplines_enseignees}}</td></tr>
+      <tr><td>Classe(s) attribuée(s)</td><td>{{classes_attribuees}}</td></tr>
+      <tr><td>Niveau(x)</td><td>{{niveaux}}</td></tr>
+      <tr><td>Volume horaire hebdomadaire</td><td>{{heures_semaine}} heures/semaine</td></tr>
+      <tr><td>Fonction</td><td>{{fonction_prof}}</td></tr>
+    </table>
+  </div>
+
+  <!-- ══ ART. 2 : DURÉE ════════════════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 2 — Durée et nature du contrat</div>
+    <div class="article-body">
+      Le présent contrat est conclu pour une durée déterminée de <strong>{{duree_contrat}}</strong>, prenant effet le <strong>{{date_debut}}</strong> et se terminant le <strong>{{date_fin}}</strong>, correspondant à l'année scolaire {{annee_scolaire}}.
+    </div>
+    <table class="data-table" style="margin-top:8px;">
+      <tr><td>Nature du contrat</td><td>{{type_contrat}}</td></tr>
+      <tr><td>Date de prise de service</td><td>{{date_debut}}</td></tr>
+      <tr><td>Date d'expiration</td><td>{{date_fin}}</td></tr>
+      <tr><td>Période d'essai</td><td>{{periode_essai}}</td></tr>
+      <tr><td>Renouvellement</td><td>{{conditions_renouvellement}}</td></tr>
+    </table>
+  </div>
+
+  <!-- ══ ART. 3 : RÉMUNÉRATION ══════════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 3 — Rémunération</div>
+    <div class="article-body">
+      En contrepartie des services rendus, l'établissement s'engage à rémunérer l'enseignant(e) dans les conditions suivantes :
+    </div>
+    <table class="remuneration-table" style="margin-top:8px;">
+      <thead>
+        <tr>
+          <th>Élément de rémunération</th>
+          <th>Montant mensuel ({{currency}})</th>
+          <th>Fréquence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Salaire de base</td>
+          <td class="amount">{{salaire_base}}</td>
+          <td>Mensuel</td>
+        </tr>
+        <tr>
+          <td>Indemnité de transport</td>
+          <td class="amount">{{indemnite_transport}}</td>
+          <td>Mensuel</td>
+        </tr>
+        <tr>
+          <td>Indemnité de logement</td>
+          <td class="amount">{{indemnite_logement}}</td>
+          <td>Mensuel</td>
+        </tr>
+        <tr>
+          <td>Heures supplémentaires (taux)</td>
+          <td class="amount">{{taux_heure_supp}}</td>
+          <td>Par heure</td>
+        </tr>
+        <tr>
+          <td>Prime de rendement</td>
+          <td class="amount">{{prime_rendement}}</td>
+          <td>Trimestriel</td>
+        </tr>
+        <tr class="total-row">
+          <td><strong>SALAIRE MENSUEL TOTAL</strong></td>
+          <td class="amount"><strong>{{salaire_mensuel_total}}</strong></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="article-body" style="margin-top:6px; font-size:8.5pt;">
+      Le salaire est payable le <strong>{{jour_paiement}}</strong> de chaque mois par {{mode_paiement}}. Les retenues légales (cotisations sociales, impôts) seront opérées conformément à la législation en vigueur.
+    </div>
+  </div>
+
+  <!-- ══ ART. 4 : OBLIGATIONS DE L'ENSEIGNANT ══════════════ -->
+  <div class="article">
+    <div class="article-title">Article 4 — Obligations de l'enseignant(e)</div>
+    <ul class="clause-list">
+      <li>Assurer l'intégralité des heures d'enseignement prévues dans les délais fixés par le calendrier scolaire.</li>
+      <li>Élaborer et mettre en œuvre les progressions pédagogiques conformément aux programmes officiels en vigueur.</li>
+      <li>Préparer et corriger les évaluations, devoirs et examens dans les délais impartis.</li>
+      <li>Participer aux réunions pédagogiques, conseils de classe et aux activités parascolaires organisées par l'établissement.</li>
+      <li>Assurer la surveillance des élèves pendant les heures de cours et hors cours selon le planning établi.</li>
+      <li>Tenir à jour les documents pédagogiques : cahier de texte, registre d'appel, bulletins de notes.</li>
+      <li>Respecter et faire respecter le règlement intérieur de l'établissement.</li>
+      <li>Informer sans délai la Direction de toute absence prévisible ou imprévue.</li>
+      <li>Maintenir une tenue vestimentaire et un comportement conformes à la dignité de la fonction enseignante.</li>
+      <li>Respecter les informations confidentielles relatives aux élèves et à l'établissement.</li>
+    </ul>
+  </div>
+
+  <!-- ══ ART. 5 : OBLIGATIONS DE L'ÉTABLISSEMENT ═══════════ -->
+  <div class="article">
+    <div class="article-title">Article 5 — Obligations de l'établissement</div>
+    <ul class="clause-list">
+      <li>Payer ponctuellement la rémunération convenue à l'article 3 du présent contrat.</li>
+      <li>Mettre à disposition les ressources pédagogiques nécessaires à l'exercice des fonctions (manuels, matériels, salle de classe).</li>
+      <li>Assurer à l'enseignant(e) un environnement de travail sécurisé et conforme à la réglementation.</li>
+      <li>Déclarer l'enseignant(e) aux organismes sociaux compétents et verser les cotisations y afférentes.</li>
+      <li>Fournir une attestation de travail ou de service en fin de contrat sur demande.</li>
+      <li>Respecter la vie privée et la dignité de l'enseignant(e).</li>
+    </ul>
+  </div>
+
+  <!-- ══ ART. 6 : CONGÉS ET ABSENCES ══════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 6 — Congés, absences et jours fériés</div>
+    <div class="article-body">
+      L'enseignant(e) bénéficie des congés légaux conformément au Code du Travail. Les jours fériés légaux sont chômés et payés. Toute absence doit être justifiée dans un délai de <strong>48 heures</strong> et, selon sa nature, entraîner une retenue sur salaire calculée au prorata du nombre de jours d'absence non justifiés.
+    </div>
+    <table class="data-table" style="margin-top:8px;">
+      <tr><td>Congés annuels</td><td>{{jours_conges_annuels}} jours ouvrables</td></tr>
+      <tr><td>Congés de maladie</td><td>{{jours_conges_maladie}} jours avec certificat médical</td></tr>
+      <tr><td>Préavis de démission</td><td>{{preavis_demission}}</td></tr>
+    </table>
+  </div>
+
+  <!-- ══ ART. 7 : RÉSILIATION ══════════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 7 — Résiliation et rupture de contrat</div>
+    <div class="article-body">
+      Le présent contrat peut être résilié dans les cas suivants :
+    </div>
+    <ul class="clause-list">
+      <li><strong>À l'échéance normale :</strong> le contrat expire de plein droit à la date prévue à l'article 2.</li>
+      <li><strong>Par accord mutuel :</strong> les deux parties peuvent convenir par écrit de mettre fin au contrat avant terme.</li>
+      <li><strong>Par faute grave :</strong> en cas de manquement grave aux obligations contractuelles, la partie lésée peut résilier le contrat sans préavis ni indemnité, conformément au Code du Travail.</li>
+      <li><strong>Par force majeure :</strong> événement imprévisible, irrésistible et extérieur rendant l'exécution impossible.</li>
+      <li><strong>Par démission :</strong> l'enseignant(e) peut démissionner sous réserve du respect du préavis de <strong>{{preavis_demission}}</strong>.</li>
+    </ul>
+  </div>
+
+  <!-- ══ ART. 8 : CONFIDENTIALITÉ ══════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 8 — Confidentialité et déontologie</div>
+    <div class="article-body">
+      L'enseignant(e) s'engage à garder confidentielles toutes les informations relatives aux élèves, aux familles, aux pratiques pédagogiques internes et aux données financières de l'établissement, pendant et après la durée du présent contrat. Toute violation de cette obligation engage sa responsabilité civile et pénale.
+    </div>
+  </div>
+
+  <!-- ══ ART. 9 : LITIGES ══════════════════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 9 — Règlement des litiges</div>
+    <div class="article-body">
+      En cas de différend portant sur l'exécution ou l'interprétation du présent contrat, les parties s'engagent à recourir d'abord à une tentative de conciliation amiable. À défaut de règlement amiable dans un délai de <strong>30 jours</strong>, le litige sera soumis à la juridiction compétente du lieu d'établissement de l'école, conformément au droit applicable.
+    </div>
+  </div>
+
+  <!-- ══ ART. 10 : CLAUSES DIVERSES ═══════════════════════ -->
+  <div class="article">
+    <div class="article-title">Article 10 — Dispositions finales</div>
+    <div class="article-body">
+      Le présent contrat annule et remplace tout accord verbal ou écrit antérieur entre les parties portant sur le même objet. Il est établi en <strong>deux (2) exemplaires originaux</strong>, un pour chaque partie. Toute modification du présent contrat devra faire l'objet d'un avenant signé par les deux parties.
+    </div>
+  </div>
+
+  <!-- ══ SIGNATURES ════════════════════════════════════════ -->
+  <div class="signatures-section">
+    <div class="signatures-title">Fait à {{ville}}, le {{date_signature}}</div>
+
+    <div class="signatures-row">
+
+      <div class="sig-block">
+        <div class="sig-role">L'Enseignant(e)</div>
+        <div class="sig-zone"></div>
+        <div class="sig-name-line">{{professeur_nom_complet}}</div>
+        <div class="sig-date">Lu et approuvé — Bon pour accord</div>
+      </div>
+
+      <div class="sig-block">
+        <div class="sig-role">Le Directeur / La Directrice</div>
+        <div class="sig-zone"></div>
+        <div class="sig-name-line">{{directeur_nom}}</div>
+        <div class="sig-date">Signature avec cachet officiel</div>
+      </div>
+
+      <div class="sig-block" style="max-width:90px; align-items:center; justify-content:center;">
+        <div class="sig-role" style="text-align:center; font-size:7pt;">Cachet</div>
+        <div class="sig-stamp">CACHET<br>OFFICIEL<br>{{acronyme}}</div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:12px; font-size:8pt; color:#888; text-align:center; font-family:Arial, sans-serif;">
+      Ce contrat a été établi conformément au Code du Travail et aux textes réglementaires applicables aux établissements scolaires privés.<br>
+      Contrat N° <strong>{{numero_contrat}}</strong> — {{etablissement_nom}} — A.S. {{annee_scolaire}} — Généré le {{date_generation}}
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

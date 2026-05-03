@@ -948,6 +948,60 @@ superAdminRoutes.post(
   })
 )
 
+// Paiement partiel SaaS
+superAdminRoutes.post(
+  '/saas-invoices/:id/partial-payment',
+  audit('PARTIAL_PAYMENT', 'SaaSInvoice'),
+  asyncHandler(async (req, res) => {
+    const { amount, provider, transactionRef } = req.body as { amount: number; provider: string; transactionRef?: string }
+    if (!amount || amount <= 0) throw badRequest('Montant invalide')
+    const invoice = await prisma.saaSInvoice.findUnique({ where: { id: req.params.id }, include: { payments: true } })
+    if (!invoice) throw notFound('Facture introuvable')
+    if (invoice.status === 'PAID') throw badRequest('Cette facture est déjà entièrement payée')
+    if (invoice.status === 'CANCELED') throw badRequest('Cette facture est annulée')
+
+    const alreadyPaid = invoice.payments.filter(p => p.status === 'PAID').reduce((s, p) => s + p.amount, 0)
+    const newTotal = alreadyPaid + amount
+    if (newTotal > invoice.amount) throw badRequest(`Montant trop élevé. Reste à payer: ${invoice.amount - alreadyPaid} ${invoice.currency}`)
+
+    const isFullyPaid = newTotal >= invoice.amount
+    const [updatedInvoice] = await prisma.$transaction([
+      prisma.saaSInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          paidAmount: newTotal,
+          status: isFullyPaid ? 'PAID' : 'PARTIALLY_PAID',
+          paidAt: isFullyPaid ? new Date() : null
+        }
+      }),
+      prisma.saaSPayment.create({
+        data: {
+          institutionId: invoice.institutionId,
+          subscriptionId: invoice.subscriptionId ?? undefined,
+          invoiceId: invoice.id,
+          amount,
+          currency: invoice.currency,
+          provider: provider as any,
+          transactionRef: transactionRef ?? null,
+          status: PaymentStatus.PAID,
+          paidAt: new Date()
+        }
+      }),
+      ...(isFullyPaid && invoice.subscriptionId
+        ? [prisma.subscription.update({
+            where: { id: invoice.subscriptionId },
+            data: { status: SubscriptionStatus.ACTIVE, lastPaymentAt: new Date() }
+          }),
+          prisma.institution.update({
+            where: { id: invoice.institutionId },
+            data: { status: InstitutionStatus.ACTIVE }
+          })]
+        : [])
+    ])
+    res.json({ invoice: updatedInvoice, paidAmount: newTotal, remaining: invoice.amount - newTotal })
+  })
+)
+
 superAdminRoutes.post(
   '/saas-invoices/:id/send-reminder',
   audit('SEND_REMINDER', 'SaaSInvoice'),
@@ -1364,6 +1418,96 @@ function zodStatusMiddleware() {
     })
   )
 }
+
+// ─── CRÉANCES & BALANCE PAR INSTITUTION ─────────────────────────────────────
+
+superAdminRoutes.get(
+  '/institutions/:id/balance',
+  asyncHandler(async (req, res) => {
+    const institution = await prisma.institution.findUnique({
+      where: { id: req.params.id },
+      include: {
+        subscriptions: { orderBy: { createdAt: 'desc' }, take: 1, include: { plan: true } },
+        saasInvoices: { orderBy: { createdAt: 'desc' }, include: { payments: true } }
+      }
+    })
+    if (!institution) throw notFound('Institution introuvable')
+    const subscription = institution.subscriptions[0] ?? null
+    const invoices = institution.saasInvoices
+
+    const totalBilled = invoices.reduce((s, i) => s + i.amount, 0)
+    const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0)
+    const remaining = Math.max(0, totalBilled - totalPaid)
+    const overdueInvoices = invoices.filter(i => i.status === 'OVERDUE')
+    const overdueAmount = overdueInvoices.reduce((s, i) => s + Math.max(0, i.amount - (i.paidAmount ?? 0)), 0)
+    const upcomingInvoices = invoices.filter(i => i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID')
+
+    res.json({
+      institution: { id: institution.id, name: institution.name, status: institution.status, country: institution.country },
+      subscription,
+      summary: {
+        totalBilled,
+        totalPaid,
+        remaining,
+        overdueAmount,
+        invoiceCount: invoices.length,
+        overdueCount: overdueInvoices.length
+      },
+      invoices: invoices.map(i => ({
+        ...i,
+        paidAmount: i.paidAmount ?? 0,
+        remainingAmount: Math.max(0, i.amount - (i.paidAmount ?? 0))
+      })),
+      upcomingInvoices,
+      overdueInvoices
+    })
+  })
+)
+
+// Vue globale des créances (toutes les écoles)
+superAdminRoutes.get(
+  '/creances',
+  asyncHandler(async (_req, res) => {
+    const institutions = await prisma.institution.findMany({
+      where: { status: { not: 'DELETED' } },
+      include: {
+        subscriptions: { orderBy: { createdAt: 'desc' }, take: 1, include: { plan: true } },
+        saasInvoices: { orderBy: { createdAt: 'desc' } }
+      },
+      orderBy: { name: 'asc' }
+    })
+
+    const rows = institutions.map(inst => {
+      const sub = inst.subscriptions[0] ?? null
+      const invoices = inst.saasInvoices
+      const totalBilled = invoices.reduce((s, i) => s + i.amount, 0)
+      const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount ?? 0), 0)
+      const remaining = Math.max(0, totalBilled - totalPaid)
+      const hasOverdue = invoices.some(i => i.status === 'OVERDUE')
+      const lastPayment = invoices
+        .flatMap(i => [])
+        .sort((a: any, b: any) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
+      return {
+        institutionId: inst.id,
+        name: inst.name,
+        country: inst.country,
+        status: inst.status,
+        subscriptionStatus: sub?.status ?? null,
+        planName: sub?.plan?.name ?? null,
+        totalBilled,
+        totalPaid,
+        remaining,
+        hasOverdue,
+        invoiceCount: invoices.length,
+        subscriptionEndsAt: sub?.endsAt ?? null
+      }
+    })
+
+    const totalCreances = rows.reduce((s, r) => s + r.remaining, 0)
+    const totalEncaisse = rows.reduce((s, r) => s + r.totalPaid, 0)
+    res.json({ institutions: rows, summary: { totalCreances, totalEncaisse, count: rows.length } })
+  })
+)
 
 export async function suspendExpiredSubscriptions() {
   const now = new Date()

@@ -820,7 +820,191 @@ calendarRoutes.delete(
     const existing = await prisma.holidayLeave.findFirst({ where: { id: req.params.id } })
     if (!existing) throw notFound('Vacance ou congé introuvable')
     if (req.user!.role !== UserRole.SUPER_ADMIN && existing.institutionId !== req.institutionId) throw forbidden('Accès refusé')
+    // Only DIRECTOR (or SUPER_ADMIN) can delete validated/published holidays
+    if ([CalendarItemStatus.VALIDATED, CalendarItemStatus.PUBLISHED].includes(existing.status)) {
+      if (req.user!.role !== UserRole.DIRECTOR && req.user!.role !== UserRole.SUPER_ADMIN) {
+        throw forbidden('Seul le Directeur peut supprimer une période validée ou publiée')
+      }
+    }
     await prisma.holidayLeave.delete({ where: { id: existing.id } })
     res.json({ ok: true })
+  })
+)
+
+// ─── WORKFLOW VALIDATION CALENDRIER ──────────────────────────────────────────
+
+// Soumettre pour validation par le Directeur
+calendarRoutes.post(
+  '/holidays/:id/submit',
+  asyncHandler(async (req, res) => {
+    assertTenantOrSuperAdmin(req)
+    if (!managementRoles.has(req.user!.role)) throw forbidden('Accès refusé')
+    const holiday = await prisma.holidayLeave.findFirst({ where: { id: req.params.id } })
+    if (!holiday) throw notFound('Période introuvable')
+    if (holiday.institutionId !== req.institutionId && req.user!.role !== UserRole.SUPER_ADMIN) throw forbidden('Accès refusé')
+    if (holiday.status !== CalendarItemStatus.DRAFT) throw badRequest('Seul un brouillon peut être soumis pour validation')
+    const updated = await prisma.holidayLeave.update({
+      where: { id: holiday.id },
+      data: { status: CalendarItemStatus.PENDING_VALIDATION }
+    })
+    // Notification au directeur
+    const directors = await prisma.user.findMany({
+      where: { institutionId: holiday.institutionId, role: UserRole.DIRECTOR, isActive: true },
+      select: { id: true }
+    })
+    if (directors.length > 0) {
+      await prisma.notification.createMany({
+        data: directors.map((d) => ({
+          institutionId: holiday.institutionId,
+          userId: d.id,
+          title: 'Période à valider',
+          body: `"${holiday.title}" est en attente de votre validation.`,
+          level: 'WARNING' as const,
+          link: `/validation-calendrier`
+        }))
+      })
+    }
+    res.json({ holiday: updated })
+  })
+)
+
+// Valider une période (DIRECTOR uniquement)
+calendarRoutes.post(
+  '/holidays/:id/validate',
+  asyncHandler(async (req, res) => {
+    assertTenantOrSuperAdmin(req)
+    if (req.user!.role !== UserRole.DIRECTOR && req.user!.role !== UserRole.SUPER_ADMIN) {
+      throw forbidden('Seul le Directeur peut valider les périodes du calendrier')
+    }
+    const holiday = await prisma.holidayLeave.findFirst({ where: { id: req.params.id } })
+    if (!holiday) throw notFound('Période introuvable')
+    if (holiday.institutionId !== req.institutionId && req.user!.role !== UserRole.SUPER_ADMIN) throw forbidden('Accès refusé')
+    if (![CalendarItemStatus.PENDING_VALIDATION, CalendarItemStatus.DRAFT].includes(holiday.status)) {
+      throw badRequest('Cette période ne peut plus être validée')
+    }
+    const updated = await prisma.holidayLeave.update({
+      where: { id: holiday.id },
+      data: {
+        status: CalendarItemStatus.PUBLISHED,
+        validatedById: req.user!.id,
+        validatedAt: new Date(),
+        rejectionReason: null
+      }
+    })
+    // Mettre à jour les CalendarEvents liés
+    await prisma.calendarEvent.updateMany({
+      where: { holidayLeaveId: holiday.id },
+      data: { status: CalendarItemStatus.PUBLISHED }
+    })
+    res.json({ holiday: updated })
+  })
+)
+
+// Rejeter une période (DIRECTOR uniquement)
+calendarRoutes.post(
+  '/holidays/:id/reject',
+  asyncHandler(async (req, res) => {
+    assertTenantOrSuperAdmin(req)
+    if (req.user!.role !== UserRole.DIRECTOR && req.user!.role !== UserRole.SUPER_ADMIN) {
+      throw forbidden('Seul le Directeur peut rejeter les périodes du calendrier')
+    }
+    const { reason } = req.body as { reason?: string }
+    const holiday = await prisma.holidayLeave.findFirst({ where: { id: req.params.id } })
+    if (!holiday) throw notFound('Période introuvable')
+    if (holiday.institutionId !== req.institutionId && req.user!.role !== UserRole.SUPER_ADMIN) throw forbidden('Accès refusé')
+    const updated = await prisma.holidayLeave.update({
+      where: { id: holiday.id },
+      data: {
+        status: CalendarItemStatus.REJECTED,
+        rejectionReason: reason || 'Rejeté par le Directeur',
+        validatedById: req.user!.id,
+        validatedAt: new Date()
+      }
+    })
+    res.json({ holiday: updated })
+  })
+)
+
+// Lister les périodes en attente de validation (pour le Directeur)
+calendarRoutes.get(
+  '/holidays/pending-validation',
+  asyncHandler(async (req, res) => {
+    assertTenantOrSuperAdmin(req)
+    if (req.user!.role !== UserRole.DIRECTOR && req.user!.role !== UserRole.SUPER_ADMIN) {
+      throw forbidden('Accès réservé au Directeur')
+    }
+    const institutionId = req.user!.role === UserRole.SUPER_ADMIN
+      ? (req.query.institutionId as string | undefined)
+      : req.institutionId!
+    const holidays = await prisma.holidayLeave.findMany({
+      where: {
+        ...(institutionId ? { institutionId } : {}),
+        status: { in: [CalendarItemStatus.PENDING_VALIDATION, CalendarItemStatus.DRAFT] }
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, role: true } }
+      },
+      orderBy: { startsAt: 'asc' }
+    })
+    res.json({ holidays })
+  })
+)
+
+// ─── TEMPLATES CALENDRIER PAR PAYS ──────────────────────────────────────────
+
+calendarRoutes.get(
+  '/country-templates',
+  asyncHandler(async (req, res) => {
+    const countryCode = req.query.countryCode as string | undefined
+    const templates = await prisma.countryHolidayTemplate.findMany({
+      where: countryCode ? { countryCode } : undefined,
+      orderBy: [{ countryCode: 'asc' }, { startMonth: 'asc' }, { startDay: 'asc' }]
+    })
+    res.json({ templates })
+  })
+)
+
+// Appliquer les templates d'un pays à l'institution (génère des brouillons)
+calendarRoutes.post(
+  '/country-templates/apply',
+  asyncHandler(async (req, res) => {
+    assertTenantOrSuperAdmin(req)
+    if (req.user!.role !== UserRole.DIRECTOR && req.user!.role !== UserRole.SUPER_ADMIN) {
+      throw forbidden('Seul le Directeur ou Super Admin peut appliquer des templates')
+    }
+    const { countryCode, year } = req.body as { countryCode: string; year?: number }
+    if (!countryCode) throw badRequest('countryCode requis')
+    const institutionId = req.institutionId!
+    const targetYear = year ?? new Date().getFullYear()
+    const templates = await prisma.countryHolidayTemplate.findMany({ where: { countryCode } })
+    if (templates.length === 0) throw badRequest(`Aucun template pour le pays ${countryCode}`)
+    const created = await Promise.all(
+      templates.map((t) => {
+        const startsAt = new Date(targetYear, t.startMonth - 1, t.startDay)
+        const endsAt = new Date(
+          t.endMonth < t.startMonth ? targetYear + 1 : targetYear,
+          t.endMonth - 1,
+          t.endDay,
+          23, 59, 59
+        )
+        const durationDays = Math.max(1, Math.round((endsAt.getTime() - startsAt.getTime()) / 86400000) + 1)
+        return prisma.holidayLeave.create({
+          data: {
+            institutionId,
+            title: t.title,
+            type: t.type,
+            description: t.description,
+            startsAt,
+            endsAt,
+            durationDays,
+            color: t.color,
+            status: CalendarItemStatus.DRAFT,
+            isSystemProposed: true,
+            createdById: req.user!.id
+          }
+        })
+      })
+    )
+    res.status(201).json({ count: created.length, holidays: created })
   })
 )

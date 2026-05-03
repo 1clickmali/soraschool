@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fiche d'Inscription — {{etablissement_nom}}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #1a1a1a; background: white; }
+
+  /* ── PAGE A4 ─────────────────────────────────────────── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 12mm 14mm;
+    background: white;
+  }
+
+  /* ── EN-TÊTE ─────────────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 3px solid {{primary_color}};
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+
+  .header-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 6px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .header-logo-placeholder {
+    width: 64px;
+    height: 64px;
+    border-radius: 6px;
+    background: {{primary_color}};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+    color: white;
+    flex-shrink: 0;
+    letter-spacing: -1px;
+  }
+
+  .header-info { flex: 1; }
+  .header-school-name {
+    font-size: 14pt;
+    font-weight: 900;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+  }
+  .header-meta {
+    font-size: 7.5pt;
+    color: #555;
+    margin-top: 2px;
+    line-height: 1.5;
+  }
+  .header-meta span { margin-right: 12px; }
+
+  .header-doc {
+    text-align: right;
+    flex-shrink: 0;
+    min-width: 130px;
+  }
+  .header-doc-title {
+    font-size: 11pt;
+    font-weight: 900;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    line-height: 1.2;
+  }
+  .header-doc-year {
+    font-size: 8pt;
+    color: {{accent_color}};
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .header-doc-num {
+    font-size: 7pt;
+    color: #888;
+    margin-top: 3px;
+    font-family: monospace;
+  }
+
+  /* ── BANDE DE TITRE ──────────────────────────────────── */
+  .doc-title-band {
+    background: {{primary_color}};
+    color: white;
+    text-align: center;
+    padding: 6px 0;
+    font-size: 11pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+  }
+
+  /* ── SECTIONS ────────────────────────────────────────── */
+  .section { margin-bottom: 12px; }
+
+  .section-title {
+    background: {{accent_color}};
+    color: #1a1a1a;
+    font-size: 8pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section-title-num {
+    background: {{primary_color}};
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8pt;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+
+  /* ── GRILLE DE CHAMPS ────────────────────────────────── */
+  .fields-grid {
+    display: grid;
+    gap: 6px 10px;
+  }
+  .fields-grid-2 { grid-template-columns: 1fr 1fr; }
+  .fields-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .fields-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .field { display: flex; flex-direction: column; }
+  .field-label {
+    font-size: 6.5pt;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+  }
+  .field-line {
+    border-bottom: 1px solid #bbb;
+    height: 16px;
+    width: 100%;
+    font-size: 8.5pt;
+    color: #1a1a1a;
+    padding-bottom: 1px;
+    display: flex;
+    align-items: flex-end;
+  }
+  .field-line.filled {
+    border-bottom-color: {{primary_color}};
+    color: {{primary_color}};
+    font-weight: 600;
+  }
+  .field-line-tall {
+    border: 1px solid #bbb;
+    border-radius: 2px;
+    height: 38px;
+    width: 100%;
+    font-size: 8.5pt;
+    padding: 3px;
+  }
+
+  /* ── PHOTO ───────────────────────────────────────────── */
+  .identity-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .photo-box {
+    width: 90px;
+    height: 110px;
+    border: 2px dashed {{accent_color}};
+    border-radius: 6px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+    overflow: hidden;
+  }
+  .photo-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+  .photo-box-label {
+    font-size: 6.5pt;
+    color: #aaa;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .identity-fields { flex: 1; }
+
+  /* ── CHECKBOX ────────────────────────────────────────── */
+  .checkbox-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-top: 4px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8pt;
+  }
+  .checkbox-square {
+    width: 12px;
+    height: 12px;
+    border: 1.5px solid #888;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .checkbox-square.checked {
+    background: {{primary_color}};
+    border-color: {{primary_color}};
+  }
+
+  /* ── TABLE SCOLARITÉ ─────────────────────────────────── */
+  .scolarite-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+  }
+  .scolarite-table th {
+    background: {{primary_color}};
+    color: white;
+    padding: 4px 6px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 7pt;
+    letter-spacing: 0.5px;
+    text-align: left;
+  }
+  .scolarite-table td {
+    border: 1px solid #e0e0e0;
+    padding: 5px 6px;
+    vertical-align: top;
+  }
+  .scolarite-table tr:nth-child(even) td { background: #f9f9f9; }
+
+  /* ── FRAIS ───────────────────────────────────────────── */
+  .fees-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+  }
+  .fees-table th {
+    background: {{accent_color}};
+    color: #1a1a1a;
+    padding: 4px 6px;
+    font-weight: 700;
+    font-size: 7pt;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .fees-table td {
+    border: 1px solid #e0e0e0;
+    padding: 5px 6px;
+    vertical-align: middle;
+  }
+  .fees-table .amount {
+    font-weight: 700;
+    color: {{primary_color}};
+    text-align: right;
+    font-family: monospace;
+  }
+  .fees-table .total-row td {
+    background: {{primary_color}};
+    color: white;
+    font-weight: 900;
+    font-size: 9pt;
+  }
+  .fees-table .total-row .amount { color: {{accent_color}}; }
+
+  /* ── SANTÉ ───────────────────────────────────────────── */
+  .sante-note {
+    background: #fff8e1;
+    border-left: 3px solid {{accent_color}};
+    padding: 5px 8px;
+    font-size: 7.5pt;
+    color: #555;
+    border-radius: 0 3px 3px 0;
+    margin-top: 6px;
+  }
+
+  /* ── DOCUMENTS ───────────────────────────────────────── */
+  .docs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+  .doc-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 8pt;
+    color: #333;
+    padding: 3px 0;
+    border-bottom: 1px dotted #e0e0e0;
+  }
+  .doc-checkbox {
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #aaa;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── SIGNATURES ──────────────────────────────────────── */
+  .signatures-row {
+    display: flex;
+    gap: 20px;
+    margin-top: 8px;
+  }
+  .signature-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .signature-label {
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: {{primary_color}};
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .signature-zone {
+    border: 1px dashed #bbb;
+    border-radius: 4px;
+    height: 52px;
+    background: #fafafa;
+    display: flex;
+    align-items: flex-end;
+    padding: 4px 6px;
+  }
+  .signature-name-line {
+    border-bottom: 1px solid #ccc;
+    width: 100%;
+    font-size: 7pt;
+    color: #888;
+    padding-bottom: 2px;
+    margin-top: 3px;
+  }
+  .signature-date-line {
+    font-size: 7pt;
+    color: #999;
+    margin-top: 3px;
+  }
+
+  /* ── PIED DE PAGE ────────────────────────────────────── */
+  .footer {
+    margin-top: 14px;
+    border-top: 2px solid {{accent_color}};
+    padding-top: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-left {
+    font-size: 7pt;
+    color: #888;
+    line-height: 1.5;
+  }
+  .footer-right {
+    font-size: 7pt;
+    color: #888;
+    text-align: right;
+  }
+  .footer-stamp {
+    width: 55px;
+    height: 55px;
+    border: 2px dashed {{primary_color}};
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 6pt;
+    color: {{primary_color}};
+    text-align: center;
+    line-height: 1.3;
+    font-weight: 700;
+    text-transform: uppercase;
+    opacity: 0.4;
+  }
+
+  /* ── SÉPARATEUR ──────────────────────────────────────── */
+  .divider {
+    border: none;
+    border-top: 1px dashed #ddd;
+    margin: 8px 0;
+  }
+
+  /* ── NOTE D'INFORMATION ──────────────────────────────── */
+  .info-note {
+    background: #f0f4ff;
+    border-left: 3px solid {{primary_color}};
+    padding: 5px 8px;
+    font-size: 7.5pt;
+    color: #444;
+    border-radius: 0 3px 3px 0;
+    margin-bottom: 8px;
+  }
+
+  /* ── MATRICULE BADGE ─────────────────────────────────── */
+  .matricule-badge {
+    background: {{primary_color}};
+    color: white;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 8pt;
+    font-weight: 700;
+    font-family: monospace;
+    letter-spacing: 1px;
+    display: inline-block;
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ EN-TÊTE ══════════════════════════════════════════ -->
+  <div class="header">
+    {{#if logo_ecole}}
+    <img class="header-logo" src="{{logo_ecole}}" alt="Logo">
+    {{else}}
+    <div class="header-logo-placeholder">{{acronyme}}</div>
+    {{/if}}
+
+    <div class="header-info">
+      <div class="header-school-name">{{etablissement_nom}}</div>
+      <div class="header-meta">
+        <span>📍 {{etablissement_adresse}}</span>
+        <span>📞 {{etablissement_telephone}}</span>
+        <span>✉ {{etablissement_email}}</span>
+      </div>
+      <div class="header-meta">
+        <span>Autorisation : {{autorisation_ministerielle}}</span>
+        <span>{{etablissement_site}}</span>
+      </div>
+    </div>
+
+    <div class="header-doc">
+      <div class="header-doc-title">Fiche<br>d'Inscription</div>
+      <div class="header-doc-year">A.S. {{annee_scolaire}}</div>
+      <div class="header-doc-num">N° {{numero_dossier}}</div>
+    </div>
+  </div>
+
+  <div class="doc-title-band">Fiche d'Inscription Scolaire — {{annee_scolaire}}</div>
+
+  <div class="info-note">
+    Veuillez remplir toutes les rubriques en <strong>lettres majuscules</strong>. Joindre obligatoirement les pièces justificatives listées en section 6. Dossier incomplet non traité.
+  </div>
+
+  <!-- ══ 1. IDENTITÉ DE L'ÉLÈVE ════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">1</div>
+      Identité de l'élève
+    </div>
+
+    <div class="identity-row">
+      <div class="photo-box">
+        {{#if photo_url}}
+        <img src="{{photo_url}}" alt="Photo élève">
+        {{else}}
+        <div class="photo-box-label">PHOTO<br>D'IDENTITÉ<br>3×4 cm</div>
+        {{/if}}
+      </div>
+
+      <div class="identity-fields">
+        <div class="fields-grid fields-grid-2" style="margin-bottom:6px;">
+          <div class="field">
+            <span class="field-label">Nom de famille *</span>
+            <span class="field-line filled">{{eleve_nom}}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Prénom(s) *</span>
+            <span class="field-line filled">{{eleve_prenoms}}</span>
+          </div>
+        </div>
+
+        <div class="fields-grid fields-grid-3" style="margin-bottom:6px;">
+          <div class="field">
+            <span class="field-label">Date de naissance *</span>
+            <span class="field-line filled">{{date_naissance}}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Lieu de naissance *</span>
+            <span class="field-line filled">{{lieu_naissance}}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Nationalité</span>
+            <span class="field-line filled">{{nationalite}}</span>
+          </div>
+        </div>
+
+        <div class="fields-grid fields-grid-3" style="margin-bottom:6px;">
+          <div class="field">
+            <span class="field-label">Sexe</span>
+            <div class="checkbox-row" style="margin-top:5px;">
+              <div class="checkbox-item">
+                <div class="checkbox-square {{#if is_masculin}}checked{{/if}}"></div>
+                <span>Masculin</span>
+              </div>
+              <div class="checkbox-item">
+                <div class="checkbox-square {{#if is_feminin}}checked{{/if}}"></div>
+                <span>Féminin</span>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field-label">N° Extrait de naissance</span>
+            <span class="field-line filled">{{numero_extrait}}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Matricule</span>
+            <span class="field-line filled">{{matricule}}</span>
+          </div>
+        </div>
+
+        <div class="fields-grid fields-grid-2">
+          <div class="field">
+            <span class="field-label">Adresse domicile</span>
+            <span class="field-line filled">{{adresse_eleve}}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Quartier / District</span>
+            <span class="field-line filled">{{quartier_eleve}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 2. SCOLARITÉ ══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">2</div>
+      Informations de scolarité
+    </div>
+
+    <div class="fields-grid fields-grid-4" style="margin-bottom:8px;">
+      <div class="field">
+        <span class="field-label">Classe demandée *</span>
+        <span class="field-line filled">{{classe_demandee}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Niveau</span>
+        <span class="field-line filled">{{niveau}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Filière / Option</span>
+        <span class="field-line filled">{{filiere}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Régime</span>
+        <div class="checkbox-row" style="margin-top:5px; gap: 6px 10px;">
+          <div class="checkbox-item" style="font-size:7.5pt;">
+            <div class="checkbox-square {{#if is_journalier}}checked{{/if}}"></div>
+            <span>Jour</span>
+          </div>
+          <div class="checkbox-item" style="font-size:7.5pt;">
+            <div class="checkbox-square {{#if is_demi_pensionnaire}}checked{{/if}}"></div>
+            <span>D-P</span>
+          </div>
+          <div class="checkbox-item" style="font-size:7.5pt;">
+            <div class="checkbox-square {{#if is_pensionnaire}}checked{{/if}}"></div>
+            <span>Int.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="scolarite-table">
+      <thead>
+        <tr>
+          <th>Ancien établissement</th>
+          <th>Classe quittée</th>
+          <th>Dernière moyenne</th>
+          <th>Mention</th>
+          <th>Année scolaire</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ancien_etablissement}}</td>
+          <td>{{classe_quittee}}</td>
+          <td>{{derniere_moyenne}}</td>
+          <td>{{mention_precedente}}</td>
+          <td>{{annee_scolaire_precedente}}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top:6px;">
+      <div class="field">
+        <span class="field-label">Type d'inscription</span>
+        <div class="checkbox-row" style="margin-top:4px;">
+          <div class="checkbox-item">
+            <div class="checkbox-square {{#if is_nouvelle_inscription}}checked{{/if}}"></div>
+            <span>Nouvelle inscription</span>
+          </div>
+          <div class="checkbox-item">
+            <div class="checkbox-square {{#if is_reinscription}}checked{{/if}}"></div>
+            <span>Réinscription</span>
+          </div>
+          <div class="checkbox-item">
+            <div class="checkbox-square {{#if is_transfert}}checked{{/if}}"></div>
+            <span>Transfert</span>
+          </div>
+          <div class="checkbox-item">
+            <div class="checkbox-square {{#if is_redoublant}}checked{{/if}}"></div>
+            <span>Redoublant(e)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 3. PÈRE / TUTEUR LÉGAL ════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">3</div>
+      Père / Tuteur légal
+    </div>
+    <div class="fields-grid fields-grid-3" style="margin-bottom:6px;">
+      <div class="field">
+        <span class="field-label">Nom et Prénom(s) *</span>
+        <span class="field-line filled">{{pere_nom_prenom}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Profession</span>
+        <span class="field-line filled">{{pere_profession}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Téléphone *</span>
+        <span class="field-line filled">{{pere_telephone}}</span>
+      </div>
+    </div>
+    <div class="fields-grid fields-grid-3">
+      <div class="field">
+        <span class="field-label">Email</span>
+        <span class="field-line filled">{{pere_email}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Adresse</span>
+        <span class="field-line filled">{{pere_adresse}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Lien avec l'élève</span>
+        <span class="field-line filled">{{pere_lien}}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 4. MÈRE / TUTRICE ═════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">4</div>
+      Mère / Tutrice
+    </div>
+    <div class="fields-grid fields-grid-3" style="margin-bottom:6px;">
+      <div class="field">
+        <span class="field-label">Nom et Prénom(s) *</span>
+        <span class="field-line filled">{{mere_nom_prenom}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Profession</span>
+        <span class="field-line filled">{{mere_profession}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Téléphone *</span>
+        <span class="field-line filled">{{mere_telephone}}</span>
+      </div>
+    </div>
+    <div class="fields-grid fields-grid-3">
+      <div class="field">
+        <span class="field-label">Email</span>
+        <span class="field-line filled">{{mere_email}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Adresse</span>
+        <span class="field-line filled">{{mere_adresse}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Responsable financier ?</span>
+        <div class="checkbox-row" style="margin-top:5px;">
+          <div class="checkbox-item">
+            <div class="checkbox-square {{#if mere_est_responsable}}checked{{/if}}"></div>
+            <span>Oui</span>
+          </div>
+          <div class="checkbox-item">
+            <div class="checkbox-square"></div>
+            <span>Non</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 5. SANTÉ ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">5</div>
+      Informations médicales
+    </div>
+    <div class="fields-grid fields-grid-3" style="margin-bottom:6px;">
+      <div class="field">
+        <span class="field-label">Groupe sanguin</span>
+        <span class="field-line filled">{{groupe_sanguin}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Médecin traitant</span>
+        <span class="field-line filled">{{medecin_traitant}}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Téléphone urgence</span>
+        <span class="field-line filled">{{telephone_urgence}}</span>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:6px;">
+      <span class="field-label">Allergies / Pathologies connues</span>
+      <span class="field-line-tall">{{allergies_pathologies}}</span>
+    </div>
+    <div class="sante-note">
+      En cas d'urgence médicale, l'administration autorise-t-elle les premiers soins sans attendre les parents ?
+      <span style="margin-left:12px;">
+        <span style="margin-right:8px;">
+          <span style="border:1px solid #888; padding:1px 5px; margin-right:3px; border-radius:2px;">{{#if autorise_soins}}✓{{/if}}</span>Oui
+        </span>
+        <span>
+          <span style="border:1px solid #888; padding:1px 5px; margin-right:3px; border-radius:2px;"></span>Non
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ══ 6. FRAIS DE SCOLARITÉ ══════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">6</div>
+      Frais de scolarité — A.S. {{annee_scolaire}}
+    </div>
+    <table class="fees-table">
+      <thead>
+        <tr>
+          <th style="width:40%;">Désignation</th>
+          <th style="width:20%;">Montant ({{currency}})</th>
+          <th style="width:20%;">Versement 1</th>
+          <th style="width:20%;">Versement 2</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frais d'inscription</td>
+          <td class="amount">{{frais_inscription}}</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Frais de scolarité</td>
+          <td class="amount">{{frais_scolarite}}</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Frais annexes (manuels, tenues…)</td>
+          <td class="amount">{{frais_annexes}}</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Autres frais</td>
+          <td class="amount">{{autres_frais}}</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr class="total-row">
+          <td><strong>TOTAL</strong></td>
+          <td class="amount"><strong>{{total_frais}}</strong></td>
+          <td class="amount"><strong>{{versement_1}}</strong></td>
+          <td class="amount"><strong>{{versement_2}}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ 7. PIÈCES DU DOSSIER ══════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">7</div>
+      Pièces constitutives du dossier
+    </div>
+    <div class="docs-grid">
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Extrait de naissance ou acte de naissance</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Certificat médical de moins de 3 mois</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>4 photos d'identité récentes 3×4 cm</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Bulletin de notes de l'année précédente</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Certificat de scolarité précédent</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Copie CNI / passeport du parent/tuteur</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Bordereau de transfert (si transfert)</span></div>
+      <div class="doc-item"><div class="doc-checkbox"></div><span>Attestation de succès / diplôme (si applicable)</span></div>
+    </div>
+  </div>
+
+  <!-- ══ 8. ENGAGEMENTS & SIGNATURES ══════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-num">8</div>
+      Engagements et signatures
+    </div>
+
+    <div class="sante-note" style="margin-bottom:8px;">
+      Je soussigné(e), parent/tuteur légal de l'élève ci-dessus, m'engage à respecter le règlement intérieur de l'établissement, à payer les frais de scolarité aux échéances convenues et à tenir informée l'administration de tout changement de situation. Je certifie l'exactitude des informations fournies.
+    </div>
+
+    <div class="signatures-row">
+      <div class="signature-box">
+        <div class="signature-label">Signature du Parent / Tuteur légal</div>
+        <div class="signature-zone"></div>
+        <div class="signature-name-line">Nom et Prénom : ___________________________</div>
+        <div class="signature-date-line">Date : _______ / _______ / _______</div>
+      </div>
+
+      <div class="signature-box">
+        <div class="signature-label">Visa du Directeur / Directrice</div>
+        <div class="signature-zone"></div>
+        <div class="signature-name-line">{{directeur_nom}}</div>
+        <div class="signature-date-line">Date de validation : _______ / _______ / _______</div>
+      </div>
+
+      <div class="signature-box" style="max-width:80px; align-items:center;">
+        <div class="signature-label" style="text-align:center; font-size:6pt;">Cachet officiel</div>
+        <div class="footer-stamp" style="opacity:0.3; width:70px; height:70px; font-size:5.5pt;">CACHET<br>{{acronyme}}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PIED DE PAGE ══════════════════════════════════════ -->
+  <div class="footer">
+    <div class="footer-left">
+      <strong>{{etablissement_nom}}</strong><br>
+      {{etablissement_adresse}} — Tél. {{etablissement_telephone}}<br>
+      Autorisation min. : {{autorisation_ministerielle}}
+    </div>
+    <div class="footer-right">
+      Dossier N° <strong>{{numero_dossier}}</strong><br>
+      Généré le {{date_generation}}<br>
+      {{etablissement_site}}
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -8,39 +8,32 @@ import { isAuthenticated } from "@/lib/auth";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { setUser } = useAuthStore();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.replace("/login");
       return;
     }
-
-    // Fetch current user profile
     authApi.me().then(({ data }) => {
       if (data) setUser(data);
     });
   }, [router, setUser]);
 
-  if (!isAuthenticated() && typeof window !== "undefined") {
-    return null;
-  }
+  if (!isAuthenticated() && typeof window !== "undefined") return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-soraDark">
-      <Sidebar />
+    <div className="flex min-h-screen bg-soraDark lg:h-screen lg:overflow-hidden">
+      <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
 
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header />
+      <div className="flex min-w-0 flex-1 flex-col lg:overflow-hidden">
+        <Header onMenuOpen={() => setMobileOpen(true)} />
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="p-6 min-h-full">
+          <div className="min-h-full p-4 lg:p-6">
             {children}
           </div>
         </main>

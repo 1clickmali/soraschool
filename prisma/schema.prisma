@@ -177,7 +177,10 @@ enum CalendarEventPriority {
 
 enum CalendarItemStatus {
   DRAFT
+  PENDING_VALIDATION
+  VALIDATED
   PUBLISHED
+  REJECTED
   CANCELED
 }
 
@@ -229,6 +232,7 @@ enum DocumentType {
 
 enum SaaSInvoiceStatus {
   ISSUED
+  PARTIALLY_PAID
   PAID
   OVERDUE
   CANCELED
@@ -440,6 +444,7 @@ model SaaSInvoice {
   planId         String?
   number         String
   amount         Int
+  paidAmount     Int               @default(0)
   currency       String            @default("XOF")
   status         SaaSInvoiceStatus @default(ISSUED)
   dueDate        DateTime?
@@ -541,6 +546,7 @@ model User {
   assignedDirectorAssignments EstablishmentDirectorAssignment[] @relation("DirectorAssignmentCreator")
   createdCalendarEvents       CalendarEvent[]                  @relation("CalendarEventCreator")
   createdHolidayLeaves        HolidayLeave[]                   @relation("HolidayLeaveCreator")
+  validatedHolidayLeaves      HolidayLeave[]                   @relation("HolidayLeaveValidator")
 
   @@unique([institutionId, phone])
   @@index([institutionId, role])
@@ -985,26 +991,31 @@ model HomeworkCorrection {
 }
 
 model HolidayLeave {
-  id              String             @id @default(cuid())
-  institutionId   String
-  establishmentId String?
-  createdById     String?
-  title           String
-  type            HolidayLeaveType
-  description     String?
-  startsAt        DateTime
-  endsAt          DateTime
-  durationDays    Int                @default(1)
-  classroomIds    String[]           @default([])
-  gradeLevelIds   String[]           @default([])
-  status          CalendarItemStatus @default(DRAFT)
-  color           String             @default("#F59E0B")
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id               String             @id @default(cuid())
+  institutionId    String
+  establishmentId  String?
+  createdById      String?
+  validatedById    String?
+  title            String
+  type             HolidayLeaveType
+  description      String?
+  startsAt         DateTime
+  endsAt           DateTime
+  durationDays     Int                @default(1)
+  classroomIds     String[]           @default([])
+  gradeLevelIds    String[]           @default([])
+  status           CalendarItemStatus @default(DRAFT)
+  color            String             @default("#F59E0B")
+  isSystemProposed Boolean            @default(false)
+  validatedAt      DateTime?
+  rejectionReason  String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   institution    Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  establishment  Establishment?   @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
-  createdBy      User?            @relation("HolidayLeaveCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  establishment  Establishment?  @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  createdBy      User?           @relation("HolidayLeaveCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  validatedBy    User?           @relation("HolidayLeaveValidator", fields: [validatedById], references: [id], onDelete: SetNull)
   calendarEvents CalendarEvent[]
 
   @@index([institutionId, startsAt, endsAt])
@@ -1437,4 +1448,23 @@ model AuditLog {
 
   @@index([institutionId, createdAt])
   @@index([actorId])
+}
+
+model CountryHolidayTemplate {
+  id          String           @id @default(cuid())
+  countryCode String
+  title       String
+  type        HolidayLeaveType
+  description String?
+  startMonth  Int
+  startDay    Int
+  endMonth    Int
+  endDay      Int
+  isAnnual    Boolean          @default(true)
+  year        Int?
+  color       String           @default("#F59E0B")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([countryCode])
 }

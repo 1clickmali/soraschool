@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { usePathname, useParams } from "next/navigation";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
 import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  ChevronRight,
   CreditCard,
   Download,
   FileText,
@@ -16,7 +17,12 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
+  Sparkles,
+  Star,
+  TrendingUp,
   UserRound,
+  X,
+  Zap,
 } from "lucide-react";
 import {
   downloadProtectedFile,
@@ -29,534 +35,977 @@ import {
 } from "@/lib/school-api";
 import { cn } from "@/lib/utils";
 
+/* ── Helpers ─────────────────────────────────────────────── */
 const reportTypes: Array<{ value: CreateParentReportInput["type"]; label: string }> = [
   { value: "PLAINTE", label: "Plainte" },
-  { value: "ABSENCE", label: "Absence" },
+  { value: "ABSENCE", label: "Signaler absence" },
   { value: "MALADIE", label: "Maladie" },
   { value: "URGENCE", label: "Urgence" },
 ];
 
 export type ParentPortalView = "dashboard" | "children" | "grades" | "payments" | "reports";
 
-const pageCopy: Record<ParentPortalView, { title: string; description: string }> = {
-  dashboard: {
-    title: "Suivi de mes enfants",
-    description: "Notes, bulletins, documents et reçus sont consultables uniquement en lecture. Les plaintes sont envoyées à la direction et aux enseignants.",
-  },
-  children: {
-    title: "Mes enfants",
-    description: "Consultez le dossier, la classe, les documents et les présences liées à chaque enfant.",
-  },
-  grades: {
-    title: "Bulletins et notes",
-    description: "Retrouvez les notes publiées par l’école et ouvrez les bulletins PDF disponibles.",
-  },
-  payments: {
-    title: "Reçus et frais scolaires",
-    description: "Suivez les factures, les montants restants et les reçus de paiement de vos enfants.",
-  },
-  reports: {
-    title: "Plaintes et signalements",
-    description: "Envoyez une demande à l’école et suivez l’historique de vos messages transmis.",
-  },
-};
-
-function formatDate(value?: string | Date | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("fr-FR");
-}
-
-function formatMoney(value?: number | null, currency = "XOF") {
-  if (value === null || value === undefined) return "—";
-  return `${new Intl.NumberFormat("fr-FR").format(value)} ${currency}`;
-}
-
-function studentName(student: Student) {
-  return `${student.firstName} ${student.lastName}`.trim();
-}
-
-function gradeValue(grade: Grade) {
-  const score = grade.score ?? grade.value ?? 0;
-  const max = grade.maxScore ?? 20;
-  return max ? (score / max) * 20 : score;
-}
-
-function periodName(grade: Grade) {
-  if (typeof grade.period === "string") return grade.period;
-  return grade.period?.name || "Période";
-}
-
-function periodId(grade: Grade) {
-  if (typeof grade.period === "object") return grade.period?.id;
-  return grade.periodId;
-}
-
-function studentFinance(student: Student) {
-  const invoices = student.invoices || [];
-  const total = invoices.reduce((sum, invoice) => sum + (invoice.totalAmount ?? invoice.amount ?? 0), 0);
-  const paid = invoices.reduce((sum, invoice) => sum + (invoice.paidAmount ?? 0), 0);
-  const due = invoices.reduce((sum, invoice) => sum + Math.max((invoice.totalAmount ?? invoice.amount ?? 0) - (invoice.paidAmount ?? 0), 0), 0);
-  const tuitionInvoices = invoices.filter((invoice) => {
-    const label = `${invoice.type || ""} ${invoice.title || ""} ${invoice.description || ""}`;
-    return invoice.type === "TUITION" || /scolarit|scolaire|frais/i.test(label);
-  });
-  const schoolFee = (tuitionInvoices.length ? tuitionInvoices : invoices).reduce((sum, invoice) => sum + (invoice.totalAmount ?? invoice.amount ?? 0), 0);
-  return { total, paid, due, schoolFee, count: invoices.length };
-}
-
-function getPortalView(pathname: string): ParentPortalView {
-  if (pathname.includes("/parent/enfants")) return "children";
-  if (pathname.includes("/parent/bulletins")) return "grades";
-  if (pathname.includes("/parent/paiements")) return "payments";
-  if (pathname.includes("/parent/plaintes")) return "reports";
+function getPortalView(p: string): ParentPortalView {
+  if (p.includes("/parent/enfants"))   return "children";
+  if (p.includes("/parent/bulletins")) return "grades";
+  if (p.includes("/parent/paiements")) return "payments";
+  if (p.includes("/parent/plaintes"))  return "reports";
   return "dashboard";
 }
 
-export default function ParentDashboardPage() {
-  const pathname = usePathname();
-  const view = getPortalView(pathname);
-  const [data, setData] = useState<ParentDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [reportForm, setReportForm] = useState<CreateParentReportInput>({
-    type: "PLAINTE",
-    childId: "",
-    message: "",
-  });
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 5)  return { text: "Bonne nuit",    emoji: "🌙" };
+  if (h < 12) return { text: "Bonjour",        emoji: "👋" };
+  if (h < 18) return { text: "Bon après-midi", emoji: "☀️" };
+  return             { text: "Bonsoir",         emoji: "🌆" };
+}
 
-  const loadDashboard = async () => {
+function formatDate(v?: string | Date | null) {
+  if (!v) return "—";
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatMoney(v?: number | null, currency = "XOF") {
+  if (v === null || v === undefined) return "—";
+  return `${new Intl.NumberFormat("fr-FR").format(v)} ${currency}`;
+}
+
+function studentName(s: Student) { return `${s.firstName} ${s.lastName}`.trim(); }
+
+function gradeValue(g: Grade) {
+  const score = g.score ?? g.value ?? 0;
+  const max   = g.maxScore ?? 20;
+  return max ? (score / max) * 20 : score;
+}
+
+function periodName(g: Grade) {
+  if (typeof g.period === "string") return g.period;
+  return g.period?.name || "Période";
+}
+function periodId(g: Grade) {
+  if (typeof g.period === "object") return g.period?.id;
+  return g.periodId;
+}
+
+function gradeColor(v: number) {
+  if (v >= 16) return { text: "text-emerald-400", bg: "bg-emerald-400/10", bar: "bg-emerald-400", label: "Excellent" };
+  if (v >= 14) return { text: "text-lime-400",    bg: "bg-lime-400/10",    bar: "bg-lime-400",    label: "Bien" };
+  if (v >= 12) return { text: "text-yellow-400",  bg: "bg-yellow-400/10",  bar: "bg-yellow-400",  label: "Assez bien" };
+  if (v >= 10) return { text: "text-orange-400",  bg: "bg-orange-400/10",  bar: "bg-orange-400",  label: "Passable" };
+  return              { text: "text-red-400",      bg: "bg-red-400/10",     bar: "bg-red-400",     label: "Insuffisant" };
+}
+
+function studentFinance(s: Student) {
+  const invoices = s.invoices || [];
+  const total = invoices.reduce((sum, i) => sum + (i.totalAmount ?? i.amount ?? 0), 0);
+  const paid  = invoices.reduce((sum, i) => sum + (i.paidAmount ?? 0), 0);
+  const due   = invoices.reduce((sum, i) => sum + Math.max((i.totalAmount ?? i.amount ?? 0) - (i.paidAmount ?? 0), 0), 0);
+  return { total, paid, due, count: invoices.length, pct: total > 0 ? Math.round((paid / total) * 100) : 0 };
+}
+
+function avgGrade(s: Student) {
+  const grades = (s.grades || []).map(gradeValue);
+  if (!grades.length) return null;
+  return grades.reduce((a, b) => a + b, 0) / grades.length;
+}
+
+/* ── Animated counter ────────────────────────────────────── */
+function AnimatedNumber({ to, decimals = 0 }: { to: number; decimals?: number }) {
+  const mv = useMotionValue(0);
+  const rounded = useTransform(mv, (v) => v.toFixed(decimals));
+  useEffect(() => {
+    const ctrl = animate(mv, to, { duration: 1.2, ease: [0.16, 1, 0.3, 1] });
+    return ctrl.stop;
+  }, [to, mv]);
+  return <motion.span>{rounded}</motion.span>;
+}
+
+/* ── Stagger variants ─────────────────────────────────────── */
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07 } },
+};
+const itemVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.96 },
+  show:   { opacity: 1, y: 0,  scale: 1, transition: { type: "spring", damping: 20, stiffness: 260 } },
+};
+
+/* ── Loading skeleton ─────────────────────────────────────── */
+function SkeletonCard({ className }: { className?: string }) {
+  return (
+    <div className={cn("animate-shimmer rounded-3xl border border-white/[0.05]", className)} />
+  );
+}
+
+/* ── MAIN PAGE ─────────────────────────────────────────────── */
+export default function ParentDashboardPage() {
+  const pathname  = usePathname();
+  const params    = useParams();
+  const view      = getPortalView(pathname);
+
+  const [data, setData]       = useState<ParentDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [reportForm, setReportForm] = useState<CreateParentReportInput>({ type: "PLAINTE", childId: "", message: "" });
+
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const load = async () => {
     setLoading(true);
-    const { data: dashboard, error } = await schoolApi.parentDashboard();
-    if (error) setMessage(error);
-    setData(dashboard);
+    const { data: d, error } = await schoolApi.parentDashboard();
+    if (error) showToast(error, false);
+    setData(d);
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  const children = useMemo(() => data?.parent.students?.map((link) => link.student) || [], [data]);
-  const documentsByOwner = useMemo(() => {
+  const children  = useMemo(() => data?.parent.students?.map((l) => l.student) || [], [data]);
+  const docsByOwner = useMemo(() => {
     const map = new Map<string, SchoolDocument[]>();
-    for (const doc of data?.documents || []) {
-      map.set(doc.ownerId, [...(map.get(doc.ownerId) || []), doc]);
-    }
+    for (const doc of data?.documents || []) map.set(doc.ownerId, [...(map.get(doc.ownerId) || []), doc]);
     return map;
   }, [data]);
 
   const firstChild = children[0];
   useEffect(() => {
-    if (!reportForm.childId && firstChild) setReportForm((prev) => ({ ...prev, childId: firstChild.id }));
+    if (!reportForm.childId && firstChild) setReportForm((p) => ({ ...p, childId: firstChild.id }));
   }, [firstChild, reportForm.childId]);
 
   const stats = useMemo(() => {
-    const invoices = children.flatMap((child) => child.invoices || []);
-    const payments = invoices.flatMap((invoice) => invoice.payments || []);
-    const grades = children.flatMap((child) => child.grades || []);
-    const absences = children.flatMap((child) => child.attendances || []).filter((item) => item.status === "ABSENT" || item.status === "LATE");
-    return { invoices: invoices.length, payments: payments.length, grades: grades.length, absences: absences.length };
+    const grades    = children.flatMap((c) => c.grades || []);
+    const absences  = children.flatMap((c) => c.attendances || []).filter((a) => a.status === "ABSENT" || a.status === "LATE");
+    const invoices  = children.flatMap((c) => c.invoices || []);
+    const payments  = invoices.flatMap((i) => i.payments || []);
+    const totalDue  = invoices.reduce((s, i) => s + Math.max((i.totalAmount ?? i.amount ?? 0) - (i.paidAmount ?? 0), 0), 0);
+    return { children: children.length, grades: grades.length, absences: absences.length, payments: payments.length, totalDue };
   }, [children]);
 
   const openDocument = async (doc: SchoolDocument) => {
-    const error = await downloadProtectedFile(doc.fileUrl, doc.title, "open");
-    if (error) setMessage(error);
+    const err = await downloadProtectedFile(doc.fileUrl, doc.title, "open");
+    if (err) showToast(err, false);
   };
-
-  const openReceipt = async (paymentId: string, receiptNumber?: string) => {
-    const error = await downloadProtectedFile(`/api/payments/${paymentId}/receipt`, `recu-${receiptNumber || paymentId}.pdf`, "open");
-    if (error) setMessage(error);
+  const openReceipt = async (id: string, num?: string) => {
+    const err = await downloadProtectedFile(`/api/payments/${id}/receipt`, `recu-${num || id}.pdf`, "open");
+    if (err) showToast(err, false);
   };
-
-  const openReportCard = async (student: Student, grade: Grade) => {
-    const id = periodId(grade);
-    if (!id) {
-      setMessage("Impossible de trouver la période du bulletin.");
-      return;
-    }
-    const error = await downloadProtectedFile(`/api/grades/report-cards/${student.id}/${id}/pdf`, `bulletin-${student.matricule || student.id}-${periodName(grade)}.pdf`, "open");
-    if (error) setMessage(error);
+  const openReportCard = async (s: Student, g: Grade) => {
+    const id = periodId(g);
+    if (!id) { showToast("Impossible de trouver la période.", false); return; }
+    const err = await downloadProtectedFile(`/api/grades/report-cards/${s.id}/${id}/pdf`, `bulletin-${s.matricule || s.id}-${periodName(g)}.pdf`, "open");
+    if (err) showToast(err, false);
   };
-
-  const openStudentPdf = async (student: Student, kind: "enrollment-form" | "card" | "dossier") => {
+  const openStudentPdf = async (s: Student, kind: "enrollment-form" | "card" | "dossier") => {
     const names = {
-      "enrollment-form": `fiche-inscription-${student.matricule || student.id}.pdf`,
-      card: `carte-identite-scolaire-${student.matricule || student.id}.pdf`,
-      dossier: `dossier-eleve-${student.matricule || student.id}.pdf`,
+      "enrollment-form": `fiche-inscription-${s.matricule || s.id}.pdf`,
+      card: `carte-identite-${s.matricule || s.id}.pdf`,
+      dossier: `dossier-${s.matricule || s.id}.pdf`,
     };
-    const error = await downloadProtectedFile(`/api/students/${student.id}/${kind}`, names[kind], "open");
-    if (error) setMessage(error);
+    const err = await downloadProtectedFile(`/api/students/${s.id}/${kind}`, names[kind], "open");
+    if (err) showToast(err, false);
   };
-
   const submitReport = async () => {
-    if (!reportForm.childId) {
-      setMessage("Choisissez l’enfant concerné.");
-      return;
-    }
-    if (!reportForm.message.trim()) {
-      setMessage("Écrivez le message de la plainte ou du signalement.");
-      return;
-    }
+    if (!reportForm.childId) { showToast("Choisissez l'enfant concerné.", false); return; }
+    if (!reportForm.message.trim()) { showToast("Écrivez votre message.", false); return; }
     setSending(true);
-    setMessage(null);
     const { error } = await schoolApi.createParentReport({ ...reportForm, message: reportForm.message.trim() });
     setSending(false);
-    if (error) {
-      setMessage(error);
-      return;
-    }
-    setReportForm((prev) => ({ ...prev, message: "" }));
-    setMessage("Plainte envoyée à la direction et aux enseignants.");
-    await loadDashboard();
+    if (error) { showToast(error, false); return; }
+    setReportForm((p) => ({ ...p, message: "" }));
+    showToast("Plainte envoyée à la direction et aux enseignants.");
+    await load();
   };
 
+  const greeting = getGreeting();
+
+  /* ────────────────────────────── LOADING ───────────────── */
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-amber-300" />
+      <div className="px-4 py-6 space-y-4 sm:px-6">
+        <SkeletonCard className="h-44" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[...Array(4)].map((_, i) => <SkeletonCard key={i} className="h-24" />)}
+        </div>
+        <SkeletonCard className="h-64" />
+        <SkeletonCard className="h-48" />
       </div>
     );
   }
 
-  const page = pageCopy[view];
-  const showStats = view === "dashboard";
-  const showReportsColumn = view === "dashboard";
-  const showReportsPage = view === "reports";
-  const reportFormPanel = (
-    <Panel title="Porter plainte / signaler" icon={MessageSquareWarning}>
-      <div className="space-y-3">
-        <select value={reportForm.childId || ""} onChange={(e) => setReportForm({ ...reportForm, childId: e.target.value })} className={fieldClass}>
-          <option value="">Choisir l’enfant</option>
-          {children.map((child) => <option key={child.id} value={child.id}>{studentName(child)}</option>)}
-        </select>
-        <select value={reportForm.type} onChange={(e) => setReportForm({ ...reportForm, type: e.target.value as CreateParentReportInput["type"] })} className={fieldClass}>
-          {reportTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-        </select>
-        <textarea value={reportForm.message} onChange={(e) => setReportForm({ ...reportForm, message: e.target.value })} placeholder="Expliquez le problème, la demande ou l’urgence..." className={cn(fieldClass, "min-h-32 resize-none")} />
-        <button onClick={submitReport} disabled={sending} className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60">
-          {sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Envoyer à l’école
-        </button>
-      </div>
-    </Panel>
-  );
-  const reportsListPanel = (
-    <Panel title="Mes plaintes envoyées" icon={UserRound}>
-      {!data?.reports?.length ? (
-        <SmallEmpty text="Aucune plainte envoyée." />
-      ) : (
-        <div className="space-y-3">
-          {data.reports.slice(0, showReportsPage ? 20 : 6).map((report) => (
-            <div key={report.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
-              <p className="text-sm font-semibold text-white">{report.title || "Plainte parent"}</p>
-              <p className="mt-1 line-clamp-3 text-xs leading-5 text-gray-400">{report.messages?.[0]?.body || "Message envoyé"}</p>
-              <p className="mt-2 text-xs text-gray-600">{formatDate(report.createdAt)}</p>
+  /* ────────────────────────────── RENDER ────────────────── */
+  return (
+    <div className="relative min-h-screen">
+
+      {/* ── Toast ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={cn(
+              "fixed top-20 left-1/2 z-[100] -translate-x-1/2 flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-2xl backdrop-blur-xl border max-w-xs w-[90vw]",
+              toast.ok
+                ? "bg-emerald-500/15 border-emerald-500/20 text-emerald-200"
+                : "bg-red-500/15 border-red-500/20 text-red-200"
+            )}
+          >
+            {toast.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+            <span className="flex-1">{toast.msg}</span>
+            <button onClick={() => setToast(null)}><X className="h-3.5 w-3.5" /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="px-4 py-5 space-y-5 sm:px-6 lg:px-8 lg:py-8"
+      >
+
+        {/* ══ HERO ════════════════════════════════════════════ */}
+        <motion.div variants={itemVariants}>
+          <div className="relative overflow-hidden rounded-3xl p-6 sm:p-7">
+            {/* Gradient bg */}
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 via-[#0d1528] to-emerald-500/10" />
+            <div className="absolute inset-0 bg-hero-mesh" />
+            {/* Animated orb */}
+            <div className="animate-orb pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-gradient-to-br from-amber-400/15 to-transparent blur-3xl" />
+            <div className="animate-orb delay-300 pointer-events-none absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-gradient-to-tr from-emerald-400/10 to-transparent blur-3xl" />
+            {/* Border */}
+            <div className="absolute inset-0 rounded-3xl border border-amber-500/15" />
+
+            <div className="relative flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <motion.div
+                  initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
+                  className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Espace parent sécurisé
+                </motion.div>
+                <motion.h1
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+                  className="font-heading text-2xl font-bold text-white sm:text-3xl"
+                >
+                  {greeting.text}&nbsp;
+                  <span className="animate-wave inline-block">{greeting.emoji}</span>
+                </motion.h1>
+                <motion.p
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
+                  className="mt-2 text-sm text-gray-300/80 max-w-sm"
+                >
+                  {view === "dashboard" && "Suivez la scolarité de vos enfants en temps réel."}
+                  {view === "children" && "Dossier, présences et documents de chaque enfant."}
+                  {view === "grades" && "Notes publiées et bulletins PDF disponibles."}
+                  {view === "payments" && "Factures, reçus et suivi des paiements scolaires."}
+                  {view === "reports" && "Envoyez un signalement ou une demande à l'école."}
+                </motion.p>
+              </div>
+
+              <button onClick={load}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.1] touch-feedback backdrop-blur"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span className="hidden sm:inline">Actualiser</span>
+              </button>
             </div>
+
+            {/* Stats row */}
+            {view === "dashboard" && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+                className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"
+              >
+                <HeroStat icon={GraduationCap} label="Enfants suivis" value={stats.children} color="text-amber-400" iconBg="bg-amber-400/15" />
+                <HeroStat icon={BookOpen} label="Notes publiées" value={stats.grades} color="text-blue-400" iconBg="bg-blue-400/15" />
+                <HeroStat icon={ReceiptText} label="Reçus payés" value={stats.payments} color="text-emerald-400" iconBg="bg-emerald-400/15" />
+                <HeroStat icon={AlertTriangle} label="Abs. / retards" value={stats.absences} color="text-rose-400" iconBg="bg-rose-400/15" />
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* ══ REPORTS PAGE ═══════════════════════════════════ */}
+        {view === "reports" && (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <motion.div variants={itemVariants}><ReportForm form={reportForm} setForm={setReportForm} children={children} sending={sending} onSubmit={submitReport} /></motion.div>
+            <motion.div variants={itemVariants}><ReportsList reports={data?.reports} /></motion.div>
+          </div>
+        )}
+
+        {/* ══ GRADES PAGE ════════════════════════════════════ */}
+        {view === "grades" && (
+          <div className="space-y-5">
+            {children.length === 0 ? <EmptyState title="Aucun enfant lié" text="Demandez à l'administration de lier votre compte au dossier de l'élève." /> : (
+              children.map((child, i) => (
+                <motion.div key={child.id} variants={itemVariants} custom={i}>
+                  <GradesCard child={child} onOpenReportCard={openReportCard} />
+                </motion.div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ══ PAYMENTS PAGE ══════════════════════════════════ */}
+        {view === "payments" && (
+          <div className="space-y-5">
+            {children.length === 0 ? <EmptyState title="Aucun enfant lié" text="Demandez à l'administration de lier votre compte au dossier de l'élève." /> : (
+              children.map((child, i) => (
+                <motion.div key={child.id} variants={itemVariants} custom={i}>
+                  <PaymentsCard child={child} onOpenReceipt={openReceipt} onDownloadPdf={(id, n) => downloadProtectedFile(`/api/payments/invoices/${id}/pdf`, `facture-${n || id}.pdf`, "open")} />
+                </motion.div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ══ DASHBOARD + CHILDREN VIEWS ═════════════════════ */}
+        {(view === "dashboard" || view === "children") && (
+          <>
+            {children.length === 0 ? (
+              <motion.div variants={itemVariants}>
+                <EmptyState
+                  title="Aucun enfant lié à ce compte"
+                  text="Contactez l'administration de l'établissement pour lier votre numéro de téléphone au dossier de votre enfant."
+                />
+              </motion.div>
+            ) : (
+              <div className={cn("grid gap-5", view === "dashboard" && children.length === 1 && "lg:grid-cols-[1.4fr_0.6fr]")}>
+                {/* Children cards */}
+                <div className="space-y-5">
+                  {children.map((child, i) => (
+                    <motion.div key={child.id} variants={itemVariants} custom={i}>
+                      <ChildCard
+                        child={child}
+                        docs={docsByOwner.get(child.id) || []}
+                        showDetail={view === "children"}
+                        onOpenStudentPdf={openStudentPdf}
+                        onOpenDocument={openDocument}
+                        onOpenReportCard={openReportCard}
+                        onOpenReceipt={openReceipt}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Right column on dashboard (lg) */}
+                {view === "dashboard" && (
+                  <div className="space-y-5">
+                    <motion.div variants={itemVariants}><ReportForm form={reportForm} setForm={setReportForm} children={children} sending={sending} onSubmit={submitReport} compact /></motion.div>
+                    <motion.div variants={itemVariants}><ReportsList reports={data?.reports} compact /></motion.div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+      </motion.div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HERO STAT CARD
+════════════════════════════════════════════════════════════ */
+function HeroStat({ icon: Icon, label, value, color, iconBg }: {
+  icon: React.ElementType; label: string; value: number; color: string; iconBg: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.05] p-3 backdrop-blur">
+      <div className={cn("mb-2 flex h-8 w-8 items-center justify-center rounded-xl", iconBg)}>
+        <Icon className={cn("h-4 w-4", color)} />
+      </div>
+      <p className={cn("text-2xl font-bold tabular-nums", color)}>
+        <AnimatedNumber to={value} />
+      </p>
+      <p className="mt-0.5 text-[11px] text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHILD CARD
+════════════════════════════════════════════════════════════ */
+function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, onOpenReportCard, onOpenReceipt }: {
+  child: Student;
+  docs: SchoolDocument[];
+  showDetail: boolean;
+  onOpenStudentPdf: (s: Student, k: "enrollment-form" | "card" | "dossier") => void;
+  onOpenDocument: (d: SchoolDocument) => void;
+  onOpenReportCard: (s: Student, g: Grade) => void;
+  onOpenReceipt: (id: string, num?: string) => void;
+}) {
+  const finance = studentFinance(child);
+  const avg     = avgGrade(child);
+  const avgC    = avg !== null ? gradeColor(avg) : null;
+  const grades  = child.grades || [];
+  const invoices = child.invoices || [];
+  const absences = (child.attendances || []).filter((a) => a.status === "ABSENT" || a.status === "LATE");
+  const periods = grades.filter((g, i, l) => periodId(g) && l.findIndex((x) => periodId(x) === periodId(g)) === i);
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.025]">
+
+      {/* Header */}
+      <div className="relative overflow-hidden p-5 pb-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
+            <div className="relative">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-amber-500 text-lg font-bold text-white shadow-lg shadow-emerald-500/20">
+                {child.firstName?.[0]}{child.lastName?.[0]}
+              </div>
+              {avg !== null && avgC && (
+                <div className={cn("absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#0d1528]", avgC.bg)}>
+                  <Star className={cn("h-2.5 w-2.5", avgC.text)} />
+                </div>
+              )}
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white leading-tight">{studentName(child)}</h2>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {child.classroom?.name || "Classe non affectée"}
+                {child.matricule && <span className="ml-2 font-mono text-xs text-gray-600">#{child.matricule}</span>}
+              </p>
+            </div>
+          </div>
+
+          {/* Avg + Finance badges */}
+          <div className="flex flex-wrap gap-2">
+            {avg !== null && avgC && (
+              <div className={cn("flex items-center gap-1.5 rounded-2xl border px-3 py-1.5", avgC.bg, "border-current/10")}>
+                <TrendingUp className={cn("h-3.5 w-3.5", avgC.text)} />
+                <span className={cn("text-sm font-bold", avgC.text)}>{avg.toFixed(1)}/20</span>
+                <span className="text-[10px] text-gray-500 hidden sm:block">{avgC.label}</span>
+              </div>
+            )}
+            {finance.count > 0 && (
+              <div className={cn(
+                "flex items-center gap-1.5 rounded-2xl border px-3 py-1.5",
+                finance.due > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-emerald-500/10 border-emerald-500/20"
+              )}>
+                <ReceiptText className={cn("h-3.5 w-3.5", finance.due > 0 ? "text-amber-400" : "text-emerald-400")} />
+                <span className={cn("text-sm font-bold", finance.due > 0 ? "text-amber-300" : "text-emerald-300")}>
+                  {finance.due > 0 ? `${finance.pct}%` : "✓"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Payment progress bar */}
+        {finance.count > 0 && finance.total > 0 && (
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-xs text-gray-500">
+              <span>Scolarité payée : {finance.pct}%</span>
+              <span>{formatMoney(finance.paid)} / {formatMoney(finance.total)}</span>
+            </div>
+            <div className="progress-bar-track">
+              <motion.div
+                className={cn("progress-bar-fill", finance.pct >= 100 ? "bg-emerald-400" : finance.pct >= 60 ? "bg-amber-400" : "bg-red-400")}
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(finance.pct, 100)}%` }}
+                transition={{ duration: 1.2, delay: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex gap-2 overflow-x-auto px-5 pb-4 scrollbar-none">
+        <ActionChip icon={FileText} label="Fiche inscription" onClick={() => onOpenStudentPdf(child, "enrollment-form")} />
+        <ActionChip icon={CreditCard} label="Carte scolaire" onClick={() => onOpenStudentPdf(child, "card")} variant="gold" />
+        <ActionChip icon={FileText} label="Attestation" onClick={() => downloadProtectedFile(`/api/grades/certificates/${child.id}/pdf?type=SCHOOL_CERTIFICATE`, `attestation-${child.matricule || child.id}.pdf`, "open")} variant="green" />
+      </div>
+
+      {/* Grades */}
+      {grades.length > 0 && (
+        <div className="border-t border-white/[0.05] px-5 py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-blue-400" />
+              <h3 className="text-sm font-semibold text-white">Notes & bulletins</h3>
+            </div>
+            {periods.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {periods.map((g) => (
+                  <button key={periodId(g)} onClick={() => onOpenReportCard(child, g)}
+                    className="inline-flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 transition touch-feedback"
+                  >
+                    <Download className="h-3 w-3" />
+                    {periodName(g)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            {grades.slice(0, 5).map((grade) => {
+              const v = gradeValue(grade);
+              const c = gradeColor(v);
+              return (
+                <motion.div key={grade.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="truncate text-sm font-medium text-gray-200">{grade.subject?.name || "Matière"}</span>
+                      <span className={cn("ml-2 shrink-0 text-sm font-bold tabular-nums", c.text)}>{v.toFixed(1)}</span>
+                    </div>
+                    <div className="progress-bar-track">
+                      <motion.div
+                        className={cn("progress-bar-fill", c.bar)}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(v / 20) * 100}%` }}
+                        transition={{ duration: 0.9, delay: 0.1, ease: "easeOut" }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Detail (children view) */}
+      {showDetail && (
+        <div className="grid gap-4 border-t border-white/[0.05] p-5 sm:grid-cols-2">
+          <InfoPanel title="Dossier" icon={UserRound}>
+            <div className="space-y-2">
+              <InfoRow label="Classe"      value={child.classroom?.name || "—"} />
+              <InfoRow label="Matricule"   value={child.matricule || "—"} />
+              <InfoRow label="Né(e) le"   value={formatDate(child.birthDate || child.dateOfBirth)} />
+              <InfoRow label="Tél. parent" value={child.parentPhone || "—"} />
+              <InfoRow label="Statut"      value={child.status || "Actif"} />
+            </div>
+          </InfoPanel>
+          <InfoPanel title="Absences & retards" icon={AlertTriangle}>
+            {absences.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-4 text-center">
+                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                </div>
+                <p className="text-sm text-gray-500">Aucun retard ou absence signalé.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {absences.slice(0, 6).map((a) => (
+                  <div key={a.id} className="flex items-center justify-between rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className={cn("h-2 w-2 rounded-full", a.status === "LATE" ? "bg-amber-400" : "bg-red-400")} />
+                      <span className="text-sm text-gray-300">{a.status === "LATE" ? "Retard" : "Absence"}</span>
+                    </div>
+                    <span className="text-xs text-gray-600">{formatDate(a.date)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </InfoPanel>
+        </div>
+      )}
+
+      {/* Documents */}
+      {docs.length > 0 && (
+        <div className="border-t border-white/[0.05] px-5 py-4">
+          <div className="mb-3 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-purple-400" />
+            <h3 className="text-sm font-semibold text-white">Documents disponibles</h3>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {docs.slice(0, showDetail ? docs.length : 4).map((doc) => (
+              <button key={doc.id} onClick={() => onOpenDocument(doc)}
+                className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 text-left transition hover:bg-white/[0.05] touch-feedback"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
+                  <FileText className="h-4 w-4 text-purple-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-200">{doc.title}</p>
+                  <p className="text-[11px] text-gray-600">{formatDate(doc.createdAt)}</p>
+                </div>
+                <Download className="h-4 w-4 shrink-0 text-amber-400" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Payments (compact) */}
+      {invoices.length > 0 && !showDetail && (
+        <div className="border-t border-white/[0.05] px-5 py-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ReceiptText className="h-4 w-4 text-emerald-400" />
+            <h3 className="text-sm font-semibold text-white">Dernières factures</h3>
+          </div>
+          <div className="space-y-2">
+            {invoices.slice(0, 3).map((inv) => {
+              const total = inv.totalAmount ?? inv.amount ?? 0;
+              const balance = Math.max(total - (inv.paidAmount ?? 0), 0);
+              return (
+                <div key={inv.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-200">{inv.title || inv.number || "Facture"}</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">Reste : {formatMoney(balance)}</p>
+                  </div>
+                  <span className={cn("shrink-0 rounded-xl px-2.5 py-1 text-[11px] font-bold",
+                    inv.status === "PAID" ? "bg-emerald-500/15 text-emerald-300" :
+                    inv.status === "PARTIALLY_PAID" ? "bg-amber-500/15 text-amber-300" :
+                    "bg-rose-500/15 text-rose-300"
+                  )}>
+                    {inv.status === "PAID" ? "Payé" : inv.status === "PARTIALLY_PAID" ? "Partiel" : "En attente"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GRADES CARD (grades page)
+════════════════════════════════════════════════════════════ */
+function GradesCard({ child, onOpenReportCard }: { child: Student; onOpenReportCard: (s: Student, g: Grade) => void }) {
+  const grades  = child.grades || [];
+  const avg     = avgGrade(child);
+  const avgC    = avg !== null ? gradeColor(avg) : null;
+  const periods = grades.filter((g, i, l) => periodId(g) && l.findIndex((x) => periodId(x) === periodId(g)) === i);
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.025]">
+      <div className="flex items-center justify-between border-b border-white/[0.05] p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-amber-500 text-sm font-bold text-white">
+            {child.firstName?.[0]}{child.lastName?.[0]}
+          </div>
+          <div>
+            <p className="font-bold text-white">{studentName(child)}</p>
+            <p className="text-sm text-gray-500">{child.classroom?.name || "Classe non affectée"}</p>
+          </div>
+        </div>
+        {avg !== null && avgC && (
+          <div className={cn("flex items-center gap-2 rounded-2xl border px-3 py-2", avgC.bg, "border-current/10")}>
+            <Zap className={cn("h-4 w-4", avgC.text)} />
+            <span className={cn("text-base font-bold tabular-nums", avgC.text)}>{avg.toFixed(2)}/20</span>
+          </div>
+        )}
+      </div>
+
+      {periods.length > 0 && (
+        <div className="flex flex-wrap gap-2 border-b border-white/[0.05] px-5 py-3">
+          <p className="w-full text-[11px] font-semibold uppercase tracking-wider text-gray-600 mb-1">Télécharger bulletins</p>
+          {periods.map((g) => (
+            <button key={periodId(g)} onClick={() => onOpenReportCard(child, g)}
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition touch-feedback"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Bulletin — {periodName(g)}
+            </button>
           ))}
         </div>
       )}
-    </Panel>
+
+      <div className="p-5 space-y-3">
+        {grades.length === 0 ? (
+          <EmptyState title="Aucune note publiée" text="Les notes seront visibles dès leur publication par l'école." small />
+        ) : (
+          grades.map((grade) => {
+            const v = gradeValue(grade);
+            const c = gradeColor(v);
+            return (
+              <div key={grade.id} className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{grade.subject?.name || "Matière"}</p>
+                    <p className="text-[11px] text-gray-600">{periodName(grade)} {grade.appreciation ? `· ${grade.appreciation}` : ""}</p>
+                  </div>
+                  <div className={cn("flex shrink-0 items-center gap-1.5 rounded-2xl px-3 py-1.5 border", c.bg, "border-current/10")}>
+                    <span className={cn("text-base font-bold tabular-nums", c.text)}>{v.toFixed(1)}</span>
+                    <span className="text-gray-600 text-xs">/20</span>
+                  </div>
+                </div>
+                <div className="progress-bar-track">
+                  <motion.div
+                    className={cn("progress-bar-fill", c.bar)}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(v / 20) * 100}%` }}
+                    transition={{ duration: 0.9, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PAYMENTS CARD (payments page)
+════════════════════════════════════════════════════════════ */
+function PaymentsCard({ child, onOpenReceipt, onDownloadPdf }: {
+  child: Student;
+  onOpenReceipt: (id: string, num?: string) => void;
+  onDownloadPdf: (id: string, n?: string) => void;
+}) {
+  const finance  = studentFinance(child);
+  const invoices = child.invoices || [];
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6 overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-br from-amber-500/14 via-emerald-500/8 to-white/[0.03] p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Espace parent sécurisé
-            </p>
-            <h1 className="font-heading text-2xl font-bold text-white sm:text-3xl">{page.title}</h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-300">
-              {page.description}
-            </p>
+    <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.025]">
+      <div className="p-5 border-b border-white/[0.05]">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-amber-500 text-sm font-bold text-white">
+            {child.firstName?.[0]}{child.lastName?.[0]}
           </div>
-          <button onClick={loadDashboard} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.09]">
-            <RefreshCw className="h-4 w-4" />
-            Actualiser
-          </button>
+          <div>
+            <p className="font-bold text-white">{studentName(child)}</p>
+            <p className="text-sm text-gray-500">{child.classroom?.name}</p>
+          </div>
         </div>
-
-        {showStats && (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat icon={GraduationCap} label="Enfants suivis" value={String(children.length)} />
-            <Stat icon={BookOpen} label="Notes enregistrées" value={String(stats.grades)} />
-            <Stat icon={ReceiptText} label="Reçus disponibles" value={String(stats.payments)} />
-            <Stat icon={AlertTriangle} label="Retards / absences" value={String(stats.absences)} />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+            <p className="text-[11px] text-gray-600 mb-1">Total</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatMoney(finance.total)}</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+            <p className="text-[11px] text-emerald-600 mb-1">Payé</p>
+            <p className="text-sm font-bold text-emerald-300 tabular-nums">{formatMoney(finance.paid)}</p>
+          </div>
+          <div className={cn("rounded-2xl border p-3 text-center", finance.due > 0 ? "border-amber-500/20 bg-amber-500/5" : "border-emerald-500/20 bg-emerald-500/5")}>
+            <p className={cn("text-[11px] mb-1", finance.due > 0 ? "text-amber-600" : "text-emerald-600")}>Reste dû</p>
+            <p className={cn("text-sm font-bold tabular-nums", finance.due > 0 ? "text-amber-300" : "text-emerald-300")}>{formatMoney(finance.due)}</p>
+          </div>
+        </div>
+        {finance.total > 0 && (
+          <div className="mt-3">
+            <div className="mb-1 flex justify-between text-[11px] text-gray-600">
+              <span>Progression</span><span>{finance.pct}%</span>
+            </div>
+            <div className="progress-bar-track">
+              <motion.div
+                className={cn("progress-bar-fill", finance.pct >= 100 ? "bg-emerald-400" : finance.pct >= 60 ? "bg-amber-400" : "bg-red-400")}
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(finance.pct, 100)}%` }}
+                transition={{ duration: 1.2, delay: 0.2, ease: [0.34, 1.56, 0.64, 1] }}
+              />
+            </div>
           </div>
         )}
-      </motion.div>
+      </div>
 
-      {message && (
-        <div className="mb-5 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-200">
-          <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-          {message}
-        </div>
-      )}
-
-      {showReportsPage ? (
-        <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-          {reportFormPanel}
-          {reportsListPanel}
-        </section>
-      ) : (
-        <section className={cn("grid gap-5", showReportsColumn && "xl:grid-cols-[1.35fr_0.65fr]")}>
-          <div className="space-y-5">
-            {children.length === 0 ? (
-              <Empty title="Aucun enfant lié" text="Demandez à l’administration de lier votre numéro parent au dossier de l’élève." />
-            ) : (
-              children.map((child) => {
-                const childDocs = documentsByOwner.get(child.id) || [];
-                const grades = child.grades || [];
-                const periods = grades.filter((grade, index, list) => periodId(grade) && list.findIndex((item) => periodId(item) === periodId(grade)) === index);
-                const invoices = child.invoices || [];
-                const finance = studentFinance(child);
-                const attendanceAlerts = (child.attendances || []).filter((item) => item.status === "ABSENT" || item.status === "LATE");
-                const showChildDetails = view === "children";
-                const showGrades = view === "dashboard" || view === "grades";
-                const showDocuments = view === "dashboard" || view === "children";
-                const showPayments = view === "dashboard" || view === "children" || view === "payments";
-                const gridColumns = showChildDetails && showDocuments ? "lg:grid-cols-2" : showGrades && showDocuments ? "lg:grid-cols-2" : "";
-
-                return (
-                  <motion.article key={child.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.035]">
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.06] p-5">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-amber-500 text-sm font-bold text-white">
-                          {child.firstName?.[0]}{child.lastName?.[0]}
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-bold text-white">{studentName(child)}</h2>
-                          <p className="text-sm text-gray-400">{child.classroom?.name || "Classe non affectée"} · {child.matricule || "Matricule non défini"}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => openStudentPdf(child, "enrollment-form")}
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-gray-100 transition hover:bg-white/[0.1]"
-                        >
-                          <FileText className="h-4 w-4" />
-                          Fiche d'inscription
-                        </button>
-                        <button
-                          onClick={() => openStudentPdf(child, "card")}
-                          className="inline-flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
-                        >
-                          <CreditCard className="h-4 w-4" />
-                          Carte d'identité scolaire
-                        </button>
-                        <button
-                          onClick={() => downloadProtectedFile(`/api/grades/certificates/${child.id}/pdf?type=SCHOOL_CERTIFICATE`, `attestation-${child.matricule || child.id}.pdf`, "open")}
-                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
-                        >
-                          <FileText className="h-4 w-4" />
-                          Attestation
-                        </button>
-                      </div>
+      <div className="p-5 space-y-3">
+        {invoices.length === 0 ? (
+          <EmptyState title="Aucune facture" text="Aucune facture disponible pour le moment." small />
+        ) : (
+          invoices.map((inv) => {
+            const total = inv.totalAmount ?? inv.amount ?? 0;
+            const balance = Math.max(total - (inv.paidAmount ?? 0), 0);
+            const pct = total > 0 ? Math.round(((inv.paidAmount ?? 0) / total) * 100) : 0;
+            return (
+              <div key={inv.id} className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.025]">
+                <div className="flex items-start justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-white">{inv.title || inv.number || "Facture"}</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">Total : {formatMoney(total)} · Reste : {formatMoney(balance)}</p>
+                    <div className="mt-2 progress-bar-track">
+                      <motion.div className={cn("progress-bar-fill", pct >= 100 ? "bg-emerald-400" : "bg-amber-400")}
+                        initial={{ width: 0 }} animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.9, ease: "easeOut" }}
+                      />
                     </div>
+                  </div>
+                  <span className={cn("shrink-0 rounded-xl px-2.5 py-1 text-[11px] font-bold",
+                    inv.status === "PAID" ? "bg-emerald-500/15 text-emerald-300" :
+                    inv.status === "PARTIALLY_PAID" ? "bg-amber-500/15 text-amber-300" :
+                    "bg-rose-500/15 text-rose-300"
+                  )}>
+                    {inv.status === "PAID" ? "Payé" : inv.status === "PARTIALLY_PAID" ? "Partiel" : "En attente"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 border-t border-white/[0.05] px-4 py-3">
+                  <button onClick={() => onDownloadPdf(inv.id, inv.number)}
+                    className="rounded-xl bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-gray-300 hover:bg-white/[0.1] transition touch-feedback"
+                  >
+                    Facture PDF
+                  </button>
+                  {(inv.payments || []).map((p) => (
+                    <button key={p.id} onClick={() => onOpenReceipt(p.id, p.receiptNumber)}
+                      className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/15 transition touch-feedback"
+                    >
+                      Reçu {p.receiptNumber || ""}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
 
-                    {(showChildDetails || showGrades || showDocuments) && (
-                      <div className={cn("grid gap-4 p-5", gridColumns)}>
-                        {showChildDetails && (
-                          <Panel title="Dossier de l’enfant" icon={UserRound}>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoItem label="Classe" value={child.classroom?.name || "Non affectée"} />
-                              <InfoItem label="Matricule" value={child.matricule || "Non défini"} />
-                              <InfoItem label="Date de naissance" value={formatDate(child.birthDate || child.dateOfBirth)} />
-                              <InfoItem label="Téléphone parent" value={child.parentPhone || data?.parent.phone || "Non renseigné"} />
-                              <InfoItem label="Adresse" value={child.address || child.city || "Non renseignée"} />
-                              <InfoItem label="Statut" value={child.status || "Actif"} />
-                            </div>
-                          </Panel>
-                        )}
+/* ═══════════════════════════════════════════════════════════
+   REPORT FORM
+════════════════════════════════════════════════════════════ */
+function ReportForm({ form, setForm, children, sending, onSubmit, compact = false }: {
+  form: CreateParentReportInput;
+  setForm: React.Dispatch<React.SetStateAction<CreateParentReportInput>>;
+  children: Student[];
+  sending: boolean;
+  onSubmit: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.025]">
+      <div className="flex items-center gap-3 border-b border-white/[0.05] p-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-500/10">
+          <MessageSquareWarning className="h-4 w-4 text-amber-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-white">Porter plainte / signaler</h3>
+          {!compact && <p className="text-[11px] text-gray-500">Votre message sera transmis à la direction</p>}
+        </div>
+      </div>
+      <div className="space-y-3 p-4">
+        <select value={form.childId || ""} onChange={(e) => setForm({ ...form, childId: e.target.value })}
+          className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-sm text-white focus:border-amber-400/40 [&>option]:bg-[#111827]"
+        >
+          <option value="">— Choisir l'enfant —</option>
+          {children.map((c) => <option key={c.id} value={c.id}>{studentName(c)}</option>)}
+        </select>
+        <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as CreateParentReportInput["type"] })}
+          className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-sm text-white focus:border-amber-400/40 [&>option]:bg-[#111827]"
+        >
+          {reportTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })}
+          placeholder="Expliquez le problème, la demande ou l'urgence…"
+          rows={compact ? 3 : 4}
+          className="w-full resize-none rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-amber-400/40"
+        />
+        <button onClick={onSubmit} disabled={sending}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 py-3 text-sm font-bold text-black shadow-lg shadow-amber-500/20 transition hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 touch-feedback"
+        >
+          {sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {sending ? "Envoi en cours…" : "Envoyer à l'école"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
-                        {showChildDetails && (
-                          <Panel title="Présences et retards" icon={AlertTriangle}>
-                            {attendanceAlerts.length === 0 ? (
-                              <SmallEmpty text="Aucun retard ou absence signalé." />
-                            ) : (
-                              <div className="space-y-2">
-                                {attendanceAlerts.slice(0, 8).map((attendance) => (
-                                  <div key={attendance.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
-                                    <span className="text-sm font-medium text-white">{attendance.status === "LATE" ? "Retard" : "Absence"}</span>
-                                    <span className="text-xs text-gray-500">{formatDate(attendance.date)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </Panel>
-                        )}
-
-                        {showGrades && (
-                          <Panel title="Notes et bulletins" icon={BookOpen}>
-                            {grades.length === 0 ? (
-                              <SmallEmpty text="Aucune note publiée pour le moment." />
-                            ) : (
-                              <div className="space-y-3">
-                                <div className="flex flex-wrap gap-2">
-                                  {periods.map((grade) => (
-                                    <button key={periodId(grade)} onClick={() => openReportCard(child, grade)} className="inline-flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20">
-                                      <Download className="h-3.5 w-3.5" />
-                                      Bulletin {periodName(grade)}
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="divide-y divide-white/[0.06] rounded-2xl border border-white/[0.06]">
-                                  {grades.slice(0, view === "grades" ? grades.length : 6).map((grade) => (
-                                    <div key={grade.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-medium text-white">{grade.subject?.name || "Matière"}</p>
-                                        <p className="text-xs text-gray-500">{periodName(grade)} · {grade.appreciation || grade.comment || "Pas d’appréciation"}</p>
-                                      </div>
-                                      <span className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-sm font-bold text-emerald-300">{gradeValue(grade).toFixed(1)}/20</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </Panel>
-                        )}
-
-                        {showDocuments && (
-                          <Panel title="Documents de l’enfant" icon={FileText}>
-                            {childDocs.length === 0 ? (
-                              <SmallEmpty text="Aucun document disponible." />
-                            ) : (
-                              <div className="space-y-2">
-                                {childDocs.slice(0, view === "children" ? childDocs.length : 6).map((doc) => (
-                                  <button key={doc.id} onClick={() => openDocument(doc)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-left transition hover:bg-white/[0.07]">
-                                    <span className="min-w-0">
-                                      <span className="block truncate text-sm font-medium text-white">{doc.title}</span>
-                                      <span className="text-xs text-gray-500">{doc.type} · {formatDate(doc.createdAt)}</span>
-                                    </span>
-                                    <Download className="h-4 w-4 shrink-0 text-amber-300" />
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </Panel>
-                        )}
-                      </div>
-                    )}
-
-                    {showPayments && (
-                      <div className={cn("p-5", (showChildDetails || showGrades || showDocuments) && "border-t border-white/[0.06]")}>
-                        <Panel title="Factures et reçus de paiement" icon={ReceiptText}>
-                          <FinanceSummary finance={finance} />
-                          {invoices.length === 0 ? (
-                            <SmallEmpty text="Aucune facture disponible." />
-                          ) : (
-                            <div className="grid gap-3 md:grid-cols-2">
-                              {invoices.map((invoice) => {
-                                const total = invoice.totalAmount ?? invoice.amount ?? 0;
-                                const balance = Math.max(total - (invoice.paidAmount ?? 0), 0);
-                                return (
-                                  <div key={invoice.id} className="rounded-2xl border border-white/[0.06] bg-[#0b1220] p-4">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div>
-                                        <p className="text-sm font-semibold text-white">{invoice.title || invoice.number || "Facture"}</p>
-                                        <p className="mt-1 text-xs text-gray-500">Total : {formatMoney(total)} · Payé : {formatMoney(invoice.paidAmount ?? 0)}</p>
-                                        <p className="mt-1 text-xs text-amber-200">Reste dû : {formatMoney(balance)}</p>
-                                      </div>
-                                      <span className={cn("rounded-full px-2 py-1 text-xs font-semibold", invoice.status === "PAID" ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300")}>{invoice.status}</span>
-                                    </div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                      <button onClick={() => downloadProtectedFile(`/api/payments/invoices/${invoice.id}/pdf`, `facture-${invoice.number || invoice.id}.pdf`, "open")} className="rounded-lg bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-gray-200 transition hover:bg-white/[0.1]">
-                                        Facture
-                                      </button>
-                                      {(invoice.payments || []).map((payment) => (
-                                        <button key={payment.id} onClick={() => openReceipt(payment.id, payment.receiptNumber)} className="rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20">
-                                          Reçu {payment.receiptNumber || ""}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </Panel>
-                      </div>
-                    )}
-                  </motion.article>
-                );
-              })
-            )}
+/* ═══════════════════════════════════════════════════════════
+   REPORTS LIST
+════════════════════════════════════════════════════════════ */
+function ReportsList({ reports, compact = false }: { reports?: any[]; compact?: boolean }) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.025]">
+      <div className="flex items-center gap-3 border-b border-white/[0.05] p-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-500/10">
+          <Sparkles className="h-4 w-4 text-blue-400" />
+        </div>
+        <h3 className="text-sm font-bold text-white">Plaintes envoyées</h3>
+      </div>
+      <div className="p-4">
+        {!reports?.length ? (
+          <div className="py-6 text-center">
+            <p className="text-sm text-gray-600">Aucune plainte envoyée.</p>
           </div>
-
-          {showReportsColumn && (
-            <aside className="space-y-5">
-              {reportFormPanel}
-              {reportsListPanel}
-            </aside>
-          )}
-        </section>
-      )}
+        ) : (
+          <div className="space-y-3">
+            {reports.slice(0, compact ? 4 : 20).map((r, i) => (
+              <motion.div key={r.id}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-3"
+              >
+                <p className="text-sm font-semibold text-white">{r.title || "Signalement"}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">{r.messages?.[0]?.body || "Message transmis"}</p>
+                <p className="mt-1.5 text-[11px] text-gray-700">{formatDate(r.createdAt)}</p>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-const fieldClass = "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-amber-400/50 [&>option]:bg-soraCard";
-
-function Stat({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+/* ═══════════════════════════════════════════════════════════
+   SMALL COMPONENTS
+════════════════════════════════════════════════════════════ */
+function ActionChip({ icon: Icon, label, onClick, variant = "default" }: {
+  icon: React.ElementType; label: string; onClick: () => void; variant?: "default" | "gold" | "green";
+}) {
+  const styles = {
+    default: "bg-white/[0.05] border-white/[0.08] text-gray-300",
+    gold:    "bg-amber-500/10 border-amber-500/20 text-amber-200",
+    green:   "bg-emerald-500/10 border-emerald-500/20 text-emerald-200",
+  };
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.05] p-4">
-      <Icon className="mb-3 h-5 w-5 text-amber-300" />
-      <p className="text-2xl font-bold text-white">{value}</p>
-      <p className="text-xs text-gray-400">{label}</p>
-    </div>
+    <button onClick={onClick}
+      className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-semibold transition hover:opacity-80 touch-feedback", styles[variant])}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
   );
 }
 
-function Panel({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+function InfoPanel({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-amber-300" />
-        <h3 className="font-semibold text-white">{title}</h3>
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Icon className="h-4 w-4 text-amber-400" />
+        <h4 className="text-sm font-semibold text-white">{title}</h4>
       </div>
       {children}
     </div>
   );
 }
 
-function FinanceSummary({ finance }: { finance: ReturnType<typeof studentFinance> }) {
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="mb-4 grid gap-3 sm:grid-cols-4">
-      <InfoItem label="Frais scolaires" value={formatMoney(finance.schoolFee)} />
-      <InfoItem label="Montant total" value={formatMoney(finance.total)} />
-      <InfoItem label="Déjà payé" value={formatMoney(finance.paid)} />
-      <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2.5">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-amber-200/70">Montant dû</p>
-        <p className="mt-1 text-sm font-bold text-amber-100">{formatMoney(finance.due)}</p>
-        <p className="mt-1 text-[11px] text-amber-200/60">{finance.count} facture{finance.count > 1 ? "s" : ""}</p>
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-white/[0.04] last:border-0">
+      <span className="text-[11px] text-gray-600 uppercase tracking-wide">{label}</span>
+      <span className="text-sm text-gray-200 font-medium">{value}</span>
+    </div>
+  );
+}
+
+function EmptyState({ title, text, small = false }: { title: string; text: string; small?: boolean }) {
+  if (small) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/[0.08] py-6 text-center">
+        <p className="text-sm text-gray-600">{text}</p>
       </div>
-    </div>
-  );
-}
-
-function InfoItem({ label, value }: { label: string; value: string }) {
+    );
+  }
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-gray-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+    <div className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-10 text-center">
+      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/[0.04]">
+        <GraduationCap className="h-8 w-8 text-gray-600" />
+      </div>
+      <h2 className="text-base font-bold text-white">{title}</h2>
+      <p className="mt-2 text-sm text-gray-500 max-w-xs mx-auto">{text}</p>
     </div>
   );
-}
-
-function Empty({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-8 text-center">
-      <GraduationCap className="mx-auto mb-3 h-10 w-10 text-gray-600" />
-      <h2 className="text-lg font-bold text-white">{title}</h2>
-      <p className="mt-2 text-sm text-gray-400">{text}</p>
-    </div>
-  );
-}
-
-function SmallEmpty({ text }: { text: string }) {
-  return <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-sm text-gray-500">{text}</p>;
 }

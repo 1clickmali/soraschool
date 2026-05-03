@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Contrat Client SaaS — {{client_etablissement_nom}}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #1a1a1a; background: white; line-height: 1.5; }
+
+  /* ── PAGE A4 ─────────────────────────────────────────── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 15mm 16mm 14mm;
+    background: white;
+  }
+
+  /* ── VARIABLES COULEURS SORA TECH ────────────────────── */
+  /* Brand SaaS provider: couleurs fixes Sora Tech */
+  :root {
+    --sora-primary: #6366f1;
+    --sora-dark: #4338ca;
+    --sora-accent: #f59e0b;
+    --sora-light: #eff6ff;
+  }
+
+  /* ── EN-TÊTE SORA TECH ───────────────────────────────── */
+  .saas-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 12px;
+    border-bottom: 4px solid var(--sora-primary);
+    margin-bottom: 14px;
+  }
+
+  .saas-logo-zone {
+    width: 80px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .saas-logo-circle {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--sora-primary), var(--sora-dark));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -1px;
+    margin: 0 auto;
+    box-shadow: 0 3px 10px rgba(99,102,241,0.3);
+  }
+
+  .saas-logo-name {
+    font-size: 7.5pt;
+    font-weight: 900;
+    color: var(--sora-primary);
+    margin-top: 3px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .saas-header-center { flex: 1; }
+
+  .saas-provider-name {
+    font-size: 12pt;
+    font-weight: 900;
+    color: var(--sora-primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    line-height: 1.2;
+  }
+
+  .saas-provider-tagline {
+    font-size: 8pt;
+    color: #666;
+    margin-top: 2px;
+    font-style: italic;
+  }
+
+  .saas-provider-contact {
+    font-size: 7.5pt;
+    color: #555;
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+
+  .saas-header-right { text-align: right; min-width: 120px; }
+
+  .contract-badge {
+    background: linear-gradient(135deg, var(--sora-primary), var(--sora-dark));
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 8.5pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: inline-block;
+  }
+
+  .contract-ref {
+    font-size: 7.5pt;
+    color: #888;
+    margin-top: 6px;
+    line-height: 1.8;
+    text-align: right;
+  }
+
+  /* ── TITRE PRINCIPAL ─────────────────────────────────── */
+  .main-title {
+    text-align: center;
+    margin: 14px 0;
+    padding: 10px 0;
+    border-top: 2px solid var(--sora-accent);
+    border-bottom: 2px solid var(--sora-accent);
+    background: var(--sora-light);
+    border-radius: 4px;
+  }
+
+  .main-title h1 {
+    font-size: 14pt;
+    font-weight: 900;
+    color: var(--sora-primary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .main-title p {
+    font-size: 8.5pt;
+    color: #555;
+    margin-top: 3px;
+    font-style: italic;
+  }
+
+  /* ── FICHE D'INSTALLATION (SECTION 0) ────────────────── */
+  .install-sheet {
+    background: #f9f9f9;
+    border: 2px solid var(--sora-primary);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+
+  .install-sheet-title {
+    font-size: 10pt;
+    font-weight: 900;
+    color: var(--sora-primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--sora-accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+  }
+
+  .install-field {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .install-label {
+    font-size: 7pt;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .install-value {
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--sora-primary);
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 3px;
+    word-break: break-all;
+  }
+
+  /* ── PLAN SOUSCRIT ───────────────────────────────────── */
+  .plan-card {
+    background: linear-gradient(135deg, var(--sora-primary), var(--sora-dark));
+    color: white;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .plan-icon {
+    font-size: 26pt;
+    flex-shrink: 0;
+  }
+
+  .plan-info { flex: 1; }
+
+  .plan-name {
+    font-size: 13pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .plan-description {
+    font-size: 8pt;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+
+  .plan-price {
+    text-align: right;
+  }
+
+  .plan-price-amount {
+    font-size: 16pt;
+    font-weight: 900;
+    color: var(--sora-accent);
+  }
+
+  .plan-price-period {
+    font-size: 7.5pt;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+
+  /* ── FONCTIONNALITÉS PLAN ────────────────────────────── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 5px 10px;
+    margin-bottom: 10px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8pt;
+    color: #333;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: #f4f4ff;
+    border-left: 2px solid var(--sora-primary);
+  }
+
+  .feature-check {
+    color: #22c55e;
+    font-weight: 900;
+    font-size: 9pt;
+    flex-shrink: 0;
+  }
+
+  /* ── SECTION ─────────────────────────────────────────── */
+  .section { margin-bottom: 12px; }
+
+  .section-title {
+    font-size: 10pt;
+    font-weight: 900;
+    color: var(--sora-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 7px;
+    padding-bottom: 3px;
+    border-bottom: 2px solid var(--sora-accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-num {
+    background: var(--sora-primary);
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8.5pt;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+
+  /* ── TABLE DONNÉES ───────────────────────────────────── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+  .data-table td {
+    padding: 5px 8px;
+    border: 1px solid #e0e0e0;
+    vertical-align: top;
+  }
+  .data-table tr:nth-child(even) td { background: #f9f9f9; }
+  .data-table td:first-child {
+    font-weight: 700;
+    color: #555;
+    width: 38%;
+    background: #f4f4ff;
+    font-size: 8.5pt;
+  }
+  .data-table td:last-child { color: #1a1a1a; }
+  .data-table .highlight-val { color: var(--sora-primary); font-weight: 700; }
+
+  /* ── TABLEAU FACTURATION ─────────────────────────────── */
+  .billing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+  .billing-table th {
+    background: var(--sora-primary);
+    color: white;
+    padding: 5px 8px;
+    text-align: left;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .billing-table td {
+    border: 1px solid #e0e0e0;
+    padding: 5px 8px;
+    vertical-align: middle;
+  }
+  .billing-table tr:nth-child(even) td { background: #f9f9f9; }
+  .billing-table .amount { font-weight: 700; color: var(--sora-primary); text-align: right; font-family: monospace; }
+  .billing-table .total-row td { background: var(--sora-accent); font-weight: 900; }
+
+  /* ── CLAUSES ─────────────────────────────────────────── */
+  .clause-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0;
+  }
+  .clause-list li {
+    padding: 4px 0 4px 16px;
+    position: relative;
+    font-size: 9pt;
+    text-align: justify;
+    line-height: 1.5;
+    border-bottom: 1px dotted #eee;
+    color: #333;
+  }
+  .clause-list li::before {
+    content: "›";
+    position: absolute;
+    left: 3px;
+    color: var(--sora-primary);
+    font-weight: 900;
+    font-size: 11pt;
+    line-height: 1;
+    top: 3px;
+  }
+
+  .article-body {
+    font-size: 9pt;
+    text-align: justify;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 5px;
+  }
+
+  /* ── ALERT BOX ───────────────────────────────────────── */
+  .alert-box {
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 8.5pt;
+    margin: 6px 0;
+    border-left: 3px solid;
+  }
+  .alert-box.info {
+    background: var(--sora-light);
+    border-color: var(--sora-primary);
+    color: var(--sora-dark);
+  }
+  .alert-box.warning {
+    background: #fffbeb;
+    border-color: var(--sora-accent);
+    color: #92400e;
+  }
+  .alert-box.important {
+    background: #fff5f5;
+    border-color: #ef4444;
+    color: #991b1b;
+  }
+
+  /* ── SIGNATURES ──────────────────────────────────────── */
+  .signatures-section {
+    margin-top: 16px;
+    border-top: 3px solid var(--sora-primary);
+    padding-top: 12px;
+  }
+
+  .signatures-row {
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+
+  .sig-block { flex: 1; }
+
+  .sig-provider {
+    background: linear-gradient(135deg, var(--sora-primary), var(--sora-dark));
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px 4px 0 0;
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+
+  .sig-client {
+    background: #f0f0f0;
+    padding: 6px 10px;
+    border-radius: 4px 4px 0 0;
+    font-size: 8pt;
+    font-weight: 700;
+    color: #444;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+
+  .sig-zone {
+    border: 1px solid #ddd;
+    border-top: none;
+    height: 64px;
+    background: #fafafa;
+    display: flex;
+    align-items: flex-end;
+    padding: 4px 6px;
+  }
+
+  .sig-name-line {
+    border-top: 1px solid #ccc;
+    width: 100%;
+    font-size: 8pt;
+    color: #888;
+    text-align: center;
+    padding-top: 3px;
+    font-style: italic;
+  }
+
+  .sig-date-line {
+    font-size: 7.5pt;
+    color: #aaa;
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  .sig-stamp {
+    width: 70px;
+    height: 70px;
+    border: 2.5px dashed var(--sora-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5.5pt;
+    font-weight: 700;
+    color: var(--sora-primary);
+    text-transform: uppercase;
+    text-align: center;
+    opacity: 0.3;
+    letter-spacing: 0.5px;
+    margin: 0 auto;
+  }
+
+  /* ── PIED DE PAGE ────────────────────────────────────── */
+  .doc-footer {
+    margin-top: 14px;
+    border-top: 2px solid var(--sora-accent);
+    padding-top: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 7pt;
+    color: #aaa;
+  }
+
+  .footer-brand {
+    font-weight: 900;
+    color: var(--sora-primary);
+    font-size: 8pt;
+  }
+
+  /* ── PAGE BREAK ──────────────────────────────────────── */
+  .page-break { page-break-before: always; }
+  @media print { .page-break { page-break-before: always; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ EN-TÊTE SORA TECH ═════════════════════════════════ -->
+  <div class="saas-header">
+    <div class="saas-logo-zone">
+      <div class="saas-logo-circle">ST</div>
+      <div class="saas-logo-name">Sora Tech</div>
+    </div>
+
+    <div class="saas-header-center">
+      <div class="saas-provider-name">Sora Tech Solutions</div>
+      <div class="saas-provider-tagline">Plateforme SaaS de Gestion Scolaire Nouvelle Génération</div>
+      <div class="saas-provider-contact">
+        {{sora_adresse}} — Tél. {{sora_telephone}} — {{sora_email}}<br>
+        {{sora_site}} — RCCM : {{sora_rccm}}
+      </div>
+    </div>
+
+    <div class="saas-header-right">
+      <div class="contract-badge">Contrat SaaS</div>
+      <div class="contract-ref">
+        <strong>Contrat N° :</strong> {{numero_contrat}}<br>
+        <strong>Signé le :</strong> {{date_signature}}<br>
+        <strong>Valable jusqu'au :</strong> {{date_expiration}}
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TITRE PRINCIPAL ══════════════════════════════════ -->
+  <div class="main-title">
+    <h1>Contrat de Service & Fiche d'Installation</h1>
+    <p>Licence d'utilisation de la plateforme EduManager — Gestion scolaire en ligne</p>
+  </div>
+
+  <!-- ══ FICHE D'INSTALLATION ══════════════════════════════ -->
+  <div class="install-sheet">
+    <div class="install-sheet-title">
+      <div style="background:var(--sora-primary);color:white;padding:2px 8px;border-radius:3px;font-size:8pt;">0</div>
+      Fiche d'installation client
+    </div>
+
+    <div class="install-grid">
+      <div class="install-field">
+        <span class="install-label">Nom de l'établissement *</span>
+        <span class="install-value">{{client_etablissement_nom}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Type d'établissement</span>
+        <span class="install-value">{{client_type_etablissement}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Adresse complète</span>
+        <span class="install-value">{{client_adresse}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Ville / Pays</span>
+        <span class="install-value">{{client_ville}}, {{client_pays}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Directeur / Responsable</span>
+        <span class="install-value">{{client_directeur_nom}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Téléphone principal</span>
+        <span class="install-value">{{client_telephone}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Email</span>
+        <span class="install-value">{{client_email}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Site web</span>
+        <span class="install-value">{{client_site}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">URL de l'espace (Slug)</span>
+        <span class="install-value" style="color:#4338ca; font-family:monospace;">{{client_slug}}.sora-tech.com</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Accès administrateur (login)</span>
+        <span class="install-value" style="font-family:monospace;">{{client_login_admin}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Nombre d'élèves estimé</span>
+        <span class="install-value">{{client_nombre_eleves}}</span>
+      </div>
+      <div class="install-field">
+        <span class="install-label">Date d'activation</span>
+        <span class="install-value">{{date_activation}}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PLAN SOUSCRIT ══════════════════════════════════════ -->
+  <div class="plan-card">
+    <div class="plan-icon">⭐</div>
+    <div class="plan-info">
+      <div class="plan-name">Plan {{plan_nom}}</div>
+      <div class="plan-description">{{plan_description}}</div>
+    </div>
+    <div class="plan-price">
+      <div class="plan-price-amount">{{plan_prix}} {{currency}}</div>
+      <div class="plan-price-period">/ {{plan_periode_facturation}}</div>
+      <div style="font-size:7.5pt; opacity:0.8; margin-top:3px;">Soit {{plan_prix_mensuel}} {{currency}}/mois</div>
+    </div>
+  </div>
+
+  <!-- Fonctionnalités incluses -->
+  <div class="features-grid">
+    {{#each plan_fonctionnalites}}
+    <div class="feature-item">
+      <span class="feature-check">✓</span>
+      <span>{{this}}</span>
+    </div>
+    {{/each}}
+    <!-- Fallback si pas de liste dynamique -->
+    {{#unless plan_fonctionnalites}}
+    <div class="feature-item"><span class="feature-check">✓</span><span>Gestion des élèves</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Gestion des professeurs</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Bulletins de notes</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Emplois du temps</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Gestion des paiements</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Calendrier scolaire</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Cartes d'identité PDF</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Documents officiels</span></div>
+    <div class="feature-item"><span class="feature-check">✓</span><span>Support technique</span></div>
+    {{/unless}}
+  </div>
+
+  <!-- ══ FACTURATION ════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">1</div>
+      Conditions financières
+    </div>
+
+    <table class="billing-table">
+      <thead>
+        <tr>
+          <th style="width:40%;">Désignation</th>
+          <th style="width:20%;">Quantité</th>
+          <th style="width:20%;">P.U. ({{currency}})</th>
+          <th style="width:20%;">Total ({{currency}})</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frais d'installation et de configuration</td>
+          <td>1</td>
+          <td class="amount">{{frais_installation}}</td>
+          <td class="amount">{{frais_installation}}</td>
+        </tr>
+        <tr>
+          <td>Formation des utilisateurs ({{duree_formation}})</td>
+          <td>1 session</td>
+          <td class="amount">{{frais_formation}}</td>
+          <td class="amount">{{frais_formation}}</td>
+        </tr>
+        <tr>
+          <td>Licence {{plan_nom}} — {{plan_periode_facturation}}</td>
+          <td>1</td>
+          <td class="amount">{{plan_prix}}</td>
+          <td class="amount">{{plan_prix}}</td>
+        </tr>
+        <tr>
+          <td>Support technique prioritaire</td>
+          <td>Inclus</td>
+          <td class="amount">—</td>
+          <td class="amount">—</td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="3"><strong>TOTAL PREMIER PAIEMENT</strong></td>
+          <td class="amount"><strong>{{total_premier_paiement}}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert-box info" style="margin-top:8px;">
+      <strong>Renouvellement automatique :</strong> Le renouvellement de la licence s'effectue automatiquement tous les {{plan_periode_facturation}} au tarif en vigueur, sauf résiliation notifiée 30 jours avant l'échéance.
+    </div>
+  </div>
+
+  <!-- ══ PAGE 2 ══════════════════════════════════════════════ -->
+  <div class="page-break"></div>
+
+  <!-- ══ CONDITIONS D'UTILISATION ══════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">2</div>
+      Objet et conditions d'utilisation
+    </div>
+    <div class="article-body">
+      Sora Tech Solutions (ci-après "<strong>le Prestataire</strong>") concède à l'établissement scolaire désigné en page 1 (ci-après "<strong>le Client</strong>") une licence d'utilisation non exclusive et non cessible de la plateforme EduManager, solution SaaS de gestion scolaire en ligne. Cette licence est valable pour la durée définie au contrat et limitée à l'établissement signataire.
+    </div>
+    <table class="data-table" style="margin-top:8px;">
+      <tr><td>Plateforme</td><td class="highlight-val">EduManager by Sora Tech</td></tr>
+      <tr><td>Type de service</td><td>SaaS (Software as a Service) — Accès en ligne</td></tr>
+      <tr><td>URL d'accès dédiée</td><td class="highlight-val" style="font-family:monospace;">{{client_slug}}.sora-tech.com</td></tr>
+      <tr><td>Hébergement</td><td>Cloud sécurisé — Serveurs Railway / Vercel</td></tr>
+      <tr><td>Disponibilité garantie (SLA)</td><td>99,5% hors maintenance planifiée</td></tr>
+      <tr><td>Durée initiale</td><td>{{duree_contrat}} — du {{date_activation}} au {{date_expiration}}</td></tr>
+    </table>
+  </div>
+
+  <!-- ══ OBLIGATIONS PRESTATAIRE ════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">3</div>
+      Obligations du prestataire
+    </div>
+    <ul class="clause-list">
+      <li>Mettre à disposition la plateforme EduManager conformément au plan souscrit, avec un taux de disponibilité minimum de 99,5% hors maintenances planifiées notifiées 48h à l'avance.</li>
+      <li>Assurer la sécurité, la confidentialité et l'intégrité des données scolaires hébergées, conformément au RGPD et aux législations locales applicables.</li>
+      <li>Effectuer des sauvegardes quotidiennes automatiques des données du Client et les conserver sur une période minimale de 30 jours.</li>
+      <li>Fournir une assistance technique par email/WhatsApp du lundi au vendredi (8h-18h) et un support d'urgence 7j/7 pour les pannes critiques.</li>
+      <li>Informer le Client de toute maintenance planifiée avec un préavis minimum de 48 heures.</li>
+      <li>Mettre à disposition les mises à jour fonctionnelles et les correctifs de sécurité sans surcoût supplémentaire pour la durée du contrat.</li>
+      <li>Former les utilisateurs désignés à l'utilisation de la plateforme lors de la mise en service ({{duree_formation}}).</li>
+      <li>Restituer l'intégralité des données du Client (élèves, notes, paiements, documents) dans un format exportable en cas de résiliation.</li>
+    </ul>
+  </div>
+
+  <!-- ══ OBLIGATIONS CLIENT ══════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">4</div>
+      Obligations du client
+    </div>
+    <ul class="clause-list">
+      <li>Payer les frais de licence aux échéances convenues selon les modalités de facturation définies à la section 1.</li>
+      <li>Utiliser la plateforme exclusivement pour les besoins de gestion de l'établissement scolaire désigné et ne pas la partager avec d'autres entités.</li>
+      <li>Assurer la confidentialité des identifiants de connexion et notifier immédiatement le Prestataire de toute compromission suspectée.</li>
+      <li>Ne pas tenter de contourner les mécanismes de sécurité, d'accéder aux données d'autres établissements ou d'utiliser la plateforme à des fins illicites.</li>
+      <li>Fournir des informations exactes et à jour lors de la configuration et de l'utilisation de la plateforme.</li>
+      <li>Informer le Prestataire de toute évolution structurelle de l'établissement susceptible d'affecter les conditions du contrat.</li>
+      <li>Respecter les droits à la protection des données personnelles des élèves, professeurs et personnels administratifs.</li>
+    </ul>
+  </div>
+
+  <!-- ══ DONNÉES PERSONNELLES ═══════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">5</div>
+      Protection des données personnelles
+    </div>
+    <div class="article-body">
+      Dans le cadre de l'exécution du présent contrat, le Prestataire agit en qualité de <strong>sous-traitant au sens du RGPD</strong> et traite les données personnelles des élèves, enseignants et personnels de l'établissement Client pour le compte et selon les instructions de ce dernier. Le Client est Responsable de traitement.
+    </div>
+    <div class="alert-box warning" style="margin-top:6px;">
+      <strong>Engagements RGPD :</strong> Les données sont hébergées de manière sécurisée, chiffrées au repos et en transit, et ne sont jamais revendues ni exploitées à des fins commerciales. Le Client conserve la propriété pleine et entière de ses données.
+    </div>
+    <ul class="clause-list" style="margin-top:6px;">
+      <li>Les données sont chiffrées en transit (TLS 1.3) et au repos (AES-256).</li>
+      <li>Aucune donnée n'est partagée avec des tiers sans accord explicite du Client, sauf obligation légale.</li>
+      <li>En cas de résiliation, les données sont restituées dans un délai de 30 jours et supprimées définitivement dans un délai de 90 jours.</li>
+    </ul>
+  </div>
+
+  <!-- ══ RÉSILIATION ════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">6</div>
+      Durée, renouvellement et résiliation
+    </div>
+    <div class="article-body">
+      Le contrat est conclu pour une durée initiale de <strong>{{duree_contrat}}</strong> à compter de la date d'activation. À l'issue de cette période, il se renouvelle tacitement par période identique, sauf dénonciation adressée par écrit (email ou courrier) avec un préavis minimum de <strong>30 jours</strong>.
+    </div>
+    <ul class="clause-list" style="margin-top:6px;">
+      <li><strong>Résiliation pour non-paiement :</strong> En cas de retard de paiement supérieur à 15 jours, le Prestataire peut suspendre l'accès à la plateforme et résilier le contrat après mise en demeure restée sans effet.</li>
+      <li><strong>Résiliation pour faute :</strong> Toute violation grave des obligations du présent contrat par l'une des parties autorise l'autre à résilier sans préavis ni indemnité.</li>
+      <li><strong>Remboursement pro-rata :</strong> En cas de résiliation à l'initiative du Prestataire sans faute du Client, les sommes versées d'avance pour la période non écoulée sont remboursées.</li>
+    </ul>
+  </div>
+
+  <!-- ══ RESPONSABILITÉ ══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">7</div>
+      Responsabilité et garanties
+    </div>
+    <div class="article-body">
+      La responsabilité du Prestataire est strictement limitée au montant total des sommes perçues au titre du présent contrat sur les 12 derniers mois. Le Prestataire ne pourra être tenu responsable des dommages indirects (perte d'exploitation, préjudice commercial). Le Prestataire ne garantit pas l'absence totale de bugs mais s'engage à les corriger dans des délais raisonnables selon leur criticité.
+    </div>
+    <div class="alert-box important" style="margin-top:6px;">
+      <strong>Force majeure :</strong> Aucune des parties ne pourra être tenue responsable de manquements dus à des événements de force majeure (catastrophes naturelles, pannes d'infrastructure réseau nationale, décisions gouvernementales, etc.).
+    </div>
+  </div>
+
+  <!-- ══ LITIGES ═════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">
+      <div class="section-num">8</div>
+      Litiges et droit applicable
+    </div>
+    <div class="article-body">
+      Le présent contrat est soumis au droit en vigueur dans le pays du siège du Prestataire. En cas de litige, les parties s'engagent à une tentative de résolution amiable dans un délai de <strong>30 jours</strong>. À défaut d'accord, le litige sera soumis au tribunal compétent du lieu du siège de Sora Tech Solutions.
+    </div>
+  </div>
+
+  <!-- ══ SIGNATURES ════════════════════════════════════════ -->
+  <div class="signatures-section">
+    <div style="text-align:center; font-size:9pt; color:#555; margin-bottom:10px;">
+      Fait en deux (2) exemplaires originaux, à <strong>{{lieu_signature}}</strong>, le <strong>{{date_signature}}</strong>.<br>
+      Chaque partie reconnaît avoir lu et accepté l'intégralité des conditions du présent contrat.
+    </div>
+
+    <div class="signatures-row">
+
+      <div class="sig-block">
+        <div class="sig-provider">Le Prestataire — Sora Tech Solutions</div>
+        <div class="sig-zone"></div>
+        <div class="sig-name-line">{{sora_representant}}</div>
+        <div class="sig-date-line">Directeur Général — Sora Tech Solutions</div>
+        <div style="text-align:center; margin-top:3px;">
+          <div class="sig-stamp">SORA<br>TECH<br>SOLUTIONS</div>
+        </div>
+      </div>
+
+      <div class="sig-block">
+        <div class="sig-client">Le Client — {{client_etablissement_nom}}</div>
+        <div class="sig-zone"></div>
+        <div class="sig-name-line">{{client_directeur_nom}}</div>
+        <div class="sig-date-line">Directeur(trice) — {{client_etablissement_nom}}</div>
+        <div style="text-align:center; margin-top:3px;">
+          <div class="sig-stamp">CACHET<br>CLIENT</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:12px; padding:6px 10px; background:#f4f4ff; border-radius:4px; font-size:7.5pt; color:#666; text-align:center;">
+      Contrat N° <strong>{{numero_contrat}}</strong> — Sora Tech Solutions © {{annee_courante}} — Tous droits réservés<br>
+      Ce document est confidentiel. Toute reproduction ou divulgation non autorisée est interdite.
+    </div>
+  </div>
+
+  <!-- ══ PIED DE PAGE ══════════════════════════════════════ -->
+  <div class="doc-footer">
+    <div>
+      <span class="footer-brand">Sora Tech Solutions</span> — {{sora_adresse}}<br>
+      {{sora_telephone}} — {{sora_email}} — {{sora_site}}
+    </div>
+    <div style="text-align:right;">
+      Généré le {{date_generation}}<br>
+      Contrat N° {{numero_contrat}}
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

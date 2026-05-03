@@ -197,12 +197,18 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
 
   if (!authChecked || !user) {
     return (
-      <div className="min-h-screen bg-soraDark flex items-center justify-center">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#080d1a]">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full"
+          transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+          className="h-12 w-12 rounded-full border-2 border-emerald-500/20 border-t-emerald-500"
         />
+        <motion.p
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+          className="mt-4 text-sm text-gray-500"
+        >
+          Chargement…
+        </motion.p>
       </div>
     );
   }
@@ -390,8 +396,9 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-soraDark">
-      {/* Desktop Sidebar */}
+    <div className="flex min-h-screen bg-[#080d1a] lg:h-screen lg:overflow-hidden">
+
+      {/* ── Desktop Sidebar ──────────────────────────────── */}
       <motion.aside
         animate={{ width: collapsed ? 72 : 260 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
@@ -400,23 +407,22 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
         <SidebarContent />
       </motion.aside>
 
-      {/* Mobile Sidebar overlay */}
+      {/* ── Mobile Sidebar drawer ─────────────────────────── */}
       <AnimatePresence>
         {mobileOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+              key="school-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed left-0 top-0 bottom-0 w-64 flex flex-col bg-soraSidebar border-r border-white/[0.06] z-50 lg:hidden"
+              key="school-drawer"
+              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed left-0 top-0 bottom-0 w-72 flex flex-col bg-soraSidebar z-50 lg:hidden shadow-2xl"
             >
               <SidebarContent />
             </motion.aside>
@@ -424,39 +430,46 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
         )}
       </AnimatePresence>
 
-      {/* Main content */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      {/* ── Main area ─────────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 lg:overflow-hidden">
+
         {/* Header */}
-        <header className="sticky top-0 z-30 flex items-center h-16 px-4 lg:px-6 border-b border-white/[0.06] bg-soraDark/80 backdrop-blur-xl">
-          {/* Mobile menu button */}
+        <header className="sticky top-0 z-30 flex items-center h-16 px-4 lg:px-6 border-b border-white/[0.06] bg-[#080d1a]/90 backdrop-blur-xl shrink-0">
+
+          {/* Mobile hamburger */}
           <button
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/8 transition-all mr-3"
+            className="lg:hidden flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all mr-3 touch-feedback"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* School name + role */}
+          {/* School info */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate leading-none">{schoolName}</p>
-              <p className="text-xs text-gray-500 mt-0.5 truncate">/{slug}</p>
+            {/* School icon – mobile */}
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-xs font-bold text-white shadow-[0_0_12px_rgba(16,185,129,0.25)] lg:hidden">
+              {schoolInitials}
             </div>
-            {user && <RoleBadge role={user.role} />}
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate leading-none">{schoolName}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {user && <RoleBadge role={user.role} />}
+              </div>
+            </div>
           </div>
 
           {/* Right actions */}
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/8 transition-all">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button className="relative flex h-9 w-9 items-center justify-center rounded-2xl text-gray-500 hover:bg-white/[0.06] hover:text-white transition-all touch-feedback">
               <Bell className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
             </button>
-            <div className="w-px h-6 bg-white/10" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              className="flex h-9 items-center gap-1.5 rounded-2xl px-3 text-sm text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all touch-feedback"
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden md:inline">Déconnexion</span>
+              <span className="hidden md:inline">Déco.</span>
             </button>
           </div>
         </header>
