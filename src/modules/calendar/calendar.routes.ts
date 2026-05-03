@@ -821,7 +821,7 @@ calendarRoutes.delete(
     if (!existing) throw notFound('Vacance ou congé introuvable')
     if (req.user!.role !== UserRole.SUPER_ADMIN && existing.institutionId !== req.institutionId) throw forbidden('Accès refusé')
     // Only DIRECTOR (or SUPER_ADMIN) can delete validated/published holidays
-    if ([CalendarItemStatus.VALIDATED, CalendarItemStatus.PUBLISHED].includes(existing.status)) {
+    if (existing.status === CalendarItemStatus.VALIDATED || existing.status === CalendarItemStatus.PUBLISHED) {
       if (req.user!.role !== UserRole.DIRECTOR && req.user!.role !== UserRole.SUPER_ADMIN) {
         throw forbidden('Seul le Directeur peut supprimer une période validée ou publiée')
       }
@@ -879,7 +879,7 @@ calendarRoutes.post(
     const holiday = await prisma.holidayLeave.findFirst({ where: { id: req.params.id } })
     if (!holiday) throw notFound('Période introuvable')
     if (holiday.institutionId !== req.institutionId && req.user!.role !== UserRole.SUPER_ADMIN) throw forbidden('Accès refusé')
-    if (![CalendarItemStatus.PENDING_VALIDATION, CalendarItemStatus.DRAFT].includes(holiday.status)) {
+    if (holiday.status !== CalendarItemStatus.PENDING_VALIDATION && holiday.status !== CalendarItemStatus.DRAFT) {
       throw badRequest('Cette période ne peut plus être validée')
     }
     const updated = await prisma.holidayLeave.update({
