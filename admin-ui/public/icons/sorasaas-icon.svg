@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SoraSchool">
+  <defs>
+    <linearGradient id="bg" x1="64" x2="448" y1="64" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F6BFF"/>
+      <stop offset="0.55" stop-color="#16A34A"/>
+      <stop offset="1" stop-color="#F4B23B"/>
+    </linearGradient>
+    <linearGradient id="card" x1="128" x2="384" y1="132" y2="384" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDEAFE"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#050816"/>
+  <rect x="42" y="42" width="428" height="428" rx="96" fill="url(#bg)"/>
+  <path d="M150 173c0-25 20-45 45-45h122c25 0 45 20 45 45v166c0 25-20 45-45 45H195c-25 0-45-20-45-45V173Z" fill="url(#card)" opacity=".98"/>
+  <path d="M191 185h130M191 238h130M191 291h82" stroke="#0B1324" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="331" cy="314" r="49" fill="#050816"/>
+  <path d="m310 315 17 17 38-43" fill="none" stroke="#F4B23B" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M113 114 84 184h58l-29 70 91-107h-59l27-33h-59Z" fill="#FFFFFF" opacity=".92"/>
+</svg>

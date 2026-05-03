@@ -1,0 +1,14 @@
+node_modules
+dist
+.next
+admin-ui/.next
+admin-ui/.next.*
+admin-ui/node_modules
+.env
+.DS_Store
+storage/*
+tmp/*
+coverage
+*.log
+.vercel
+.env*.local

@@ -1,0 +1,17 @@
+.git
+.DS_Store
+.env
+*.log
+
+node_modules
+dist
+coverage
+tmp
+storage
+uploads
+
+admin-ui/.next
+admin-ui/.next.*
+admin-ui/node_modules
+admin-ui/.env.local
+admin-ui/tsconfig.tsbuildinfo

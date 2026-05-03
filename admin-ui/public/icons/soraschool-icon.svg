@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SoraSchool">
+  <defs>
+    <linearGradient id="bg" x1="64" x2="448" y1="64" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F6BFF"/>
+      <stop offset="0.55" stop-color="#16A34A"/>
+      <stop offset="1" stop-color="#F5B941"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="142" x2="370" y1="142" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E8F1FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#050816"/>
+  <rect x="42" y="42" width="428" height="428" rx="96" fill="url(#bg)"/>
+  <path d="M128 172 256 98l128 74-128 74-128-74Z" fill="#FFFFFF" opacity=".96"/>
+  <path d="M166 218v88c0 34 180 34 180 0v-88l-90 52-90-52Z" fill="url(#paper)"/>
+  <path d="M382 183v110" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" opacity=".9"/>
+  <circle cx="382" cy="330" r="24" fill="#F5B941"/>
+  <path d="M176 352h160" stroke="#050816" stroke-width="24" stroke-linecap="round" opacity=".85"/>
+  <path d="M207 394h98" stroke="#050816" stroke-width="20" stroke-linecap="round" opacity=".7"/>
+</svg>

@@ -1,0 +1,35 @@
+{
+  "name": "SoraSchool - Gestion scolaire",
+  "short_name": "SoraSchool",
+  "description": "Portail mobile SoraSchool pour administration, direction, professeurs et parents.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "background_color": "#050816",
+  "theme_color": "#0f6bff",
+  "orientation": "portrait",
+  "categories": ["education", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/soraschool-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Connexion école",
+      "short_name": "École",
+      "url": "/login",
+      "icons": [{ "src": "/icons/soraschool-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Espace parent",
+      "short_name": "Parent",
+      "url": "/parent",
+      "icons": [{ "src": "/icons/soraschool-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}
