@@ -65,6 +65,7 @@ export default function PaymentsPage() {
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
         className="bg-soraCard border border-white/8 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-white/8">
@@ -106,6 +107,7 @@ export default function PaymentsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </motion.div>
     </div>
   );

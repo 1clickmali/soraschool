@@ -92,11 +92,16 @@ paymentsRoutes.post(
       select: { id: true }
     })
     if (!student) throw badRequest('Élève introuvable pour votre périmètre')
-    const count = await prisma.invoice.count({ where: { institutionId: req.institutionId! } })
+    const lastInvoice = await prisma.invoice.findFirst({
+      where: { institutionId: req.institutionId! },
+      orderBy: { number: 'desc' },
+      select: { number: true }
+    })
+    const lastInvSeq = lastInvoice ? (parseInt(lastInvoice.number.split('-').pop() ?? '0', 10) || 0) : 0
     const invoice = await prisma.invoice.create({
       data: {
         institutionId: req.institutionId!,
-        number: `INV-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`,
+        number: `INV-${new Date().getFullYear()}-${String(lastInvSeq + 1).padStart(5, '0')}`,
         studentId: req.body.studentId,
         title: req.body.title ?? req.body.description ?? req.body.type ?? 'Frais scolaires',
         totalAmount,
@@ -150,8 +155,13 @@ paymentsRoutes.post(
     })
   ),
   asyncHandler(async (req, res) => {
-    const count = await prisma.payment.count({ where: { institutionId: req.institutionId! } })
-    const receiptNumber = `REC-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`
+    const lastPayment = await prisma.payment.findFirst({
+      where: { institutionId: req.institutionId! },
+      orderBy: { receiptNumber: 'desc' },
+      select: { receiptNumber: true }
+    })
+    const lastRecSeq = lastPayment?.receiptNumber ? (parseInt(lastPayment.receiptNumber.split('-').pop() ?? '0', 10) || 0) : 0
+    const receiptNumber = `REC-${new Date().getFullYear()}-${String(lastRecSeq + 1).padStart(6, '0')}`
     const payment = await prisma.$transaction(async (tx) => {
       let invoice: { id: string; studentId: string; paidAmount: number; totalAmount: number } | null = null
       if (req.body.invoiceId) {
@@ -183,25 +193,23 @@ paymentsRoutes.post(
           status: PaymentStatus.PAID,
           transactionRef: req.body.transactionRef ?? req.body.payerName,
           receiptNumber,
-          receiptUrl: '/pending',
           paidAt: new Date()
         }
       })
-      const paymentWithReceipt = await tx.payment.update({
+      await tx.payment.update({
         where: { id: created.id },
         data: { receiptUrl: `/api/payments/${created.id}/receipt` }
       })
       if (invoice) {
-        const paidAmount = invoice.paidAmount + req.body.amount
         await tx.invoice.update({
           where: { id: invoice.id },
           data: {
-            paidAmount,
-            status: paidAmount >= invoice.totalAmount ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID
+            paidAmount: { increment: req.body.amount },
+            status: invoice.paidAmount + req.body.amount >= invoice.totalAmount ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID
           }
         })
       }
-      return paymentWithReceipt
+      return tx.payment.findUniqueOrThrow({ where: { id: created.id } })
     })
     res.status(201).json({
       payment,

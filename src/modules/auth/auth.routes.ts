@@ -137,6 +137,9 @@ authRoutes.post(
     }
 
     const code = generateOtp()
+    await prisma.otpCode.deleteMany({
+      where: { phone, institutionId, expiresAt: { gt: new Date() } }
+    })
     await prisma.otpCode.create({
       data: {
         institutionId,

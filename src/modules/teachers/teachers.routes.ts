@@ -89,9 +89,15 @@ teachersRoutes.post(
   asyncHandler(async (req, res) => {
     await assertTeacherCapacity(req.institutionId!)
     const phone = normalizePhone(req.body.phone)
-    const count = await prisma.teacher.count({ where: { institutionId: req.institutionId! } })
     const institution = await prisma.institution.findUnique({ where: { id: req.institutionId! } })
     const prefix = `${institution?.slug.toUpperCase() ?? 'SCHOOL'}-PR`
+    const lastTeacher = await prisma.teacher.findFirst({
+      where: { institutionId: req.institutionId!, matricule: { startsWith: prefix } },
+      orderBy: { matricule: 'desc' },
+      select: { matricule: true }
+    })
+    const lastSeq = lastTeacher ? (parseInt(lastTeacher.matricule.slice(prefix.length + 1), 10) || 0) : 0
+    const count = lastSeq
     const contractType = req.body.contractType === 'VACATION' ? ContractType.VACATAIRE : req.body.contractType
     const specialization = clean(req.body.specialization ?? req.body.speciality)
     const establishmentId = resolveWritableEstablishmentId(req, req.body.establishmentId)

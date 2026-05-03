@@ -322,7 +322,7 @@ export default function PaymentsPage() {
       </motion.div>
 
       {/* Stats */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-3 gap-4 mb-6">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: "Encaissé", value: formatCurrency(paid), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10" },
           { label: "En attente", value: formatCurrency(pending), icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10" },

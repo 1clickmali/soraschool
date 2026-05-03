@@ -157,16 +157,20 @@ shopRoutes.post(
         if (product.quantity < item.quantity) throw badRequest(`Stock insuffisant pour ${product.name}`)
         return { product, quantity: item.quantity, total: product.salePrice * item.quantity }
       })
-      const count = await tx.sale.count({ where: { institutionId: req.institutionId! } })
+      const lastSale = await tx.sale.findFirst({
+        where: { institutionId: req.institutionId! },
+        orderBy: { number: 'desc' },
+        select: { number: true }
+      })
+      const lastSaleSeq = lastSale ? (parseInt(lastSale.number.split('-').pop() ?? '0', 10) || 0) : 0
       const created = await tx.sale.create({
         data: {
           institutionId: req.institutionId!,
-          number: `SALE-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`,
+          number: `SALE-${new Date().getFullYear()}-${String(lastSaleSeq + 1).padStart(5, '0')}`,
           studentId: req.body.studentId,
           parentId: req.body.parentId,
           totalAmount: items.reduce((sum: number, item: { total: number }) => sum + item.total, 0),
           paidAmount: items.reduce((sum: number, item: { total: number }) => sum + item.total, 0),
-          receiptUrl: '/pending',
           createdById: req.user!.id,
           items: {
             create: items.map((item: { product: { id: string; salePrice: number }; quantity: number; total: number }) => ({
@@ -179,11 +183,11 @@ shopRoutes.post(
         },
         include: { items: true }
       })
-      const saleWithReceipt = await tx.sale.update({
+      await tx.sale.update({
         where: { id: created.id },
-        data: { receiptUrl: `/api/shop/sales/${created.id}/receipt` },
-        include: { items: true }
+        data: { receiptUrl: `/api/shop/sales/${created.id}/receipt` }
       })
+      const saleWithReceipt = await tx.sale.findUniqueOrThrow({ where: { id: created.id }, include: { items: true } })
       for (const item of items) {
         await tx.product.update({ where: { id: item.product.id }, data: { quantity: { decrement: item.quantity } } })
         await tx.stockMovement.create({

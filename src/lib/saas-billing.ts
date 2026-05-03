@@ -57,10 +57,13 @@ export function computeAmount(
 
 export async function generateInvoiceNumber(institutionId: string): Promise<string> {
   const year = new Date().getFullYear()
-  const count = await prisma.saaSInvoice.count({
-    where: { institutionId }
+  const last = await prisma.saaSInvoice.findFirst({
+    where: { institutionId },
+    orderBy: { number: 'desc' },
+    select: { number: true }
   })
-  return `INV-SAAS-${year}-${String(count + 1).padStart(5, '0')}`
+  const lastSeq = last ? (parseInt(last.number.split('-').pop() ?? '0', 10) || 0) : 0
+  return `INV-SAAS-${year}-${String(lastSeq + 1).padStart(5, '0')}`
 }
 
 export async function createSaaSInvoice(params: {

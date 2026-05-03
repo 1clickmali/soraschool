@@ -4,7 +4,6 @@ import { Gender, InvoiceStatus, UserRole } from '@prisma/client'
 import { prisma } from '../../config/prisma'
 import { asyncHandler } from '../../lib/async'
 import { getScopedEstablishmentId, resolveWritableEstablishmentId } from '../../lib/access-scope'
-import { generateMatricule } from '../../lib/security'
 import { forbidden, notFound } from '../../lib/errors'
 import { getParentScope } from '../../lib/parent-access'
 import { assertStudentCapacity } from '../../lib/plan-limits'
@@ -160,10 +159,15 @@ studentsRoutes.post(
   ),
   asyncHandler(async (req, res) => {
     await assertStudentCapacity(req.institutionId!)
-    const count = await prisma.student.count({ where: { institutionId: req.institutionId! } })
     const institution = await prisma.institution.findUnique({ where: { id: req.institutionId! } })
     const prefix = `${institution?.slug.toUpperCase() ?? 'SCHOOL'}-EL`
-    const matricule = generateMatricule(prefix, count)
+    const lastStudent = await prisma.student.findFirst({
+      where: { institutionId: req.institutionId!, matricule: { startsWith: prefix } },
+      orderBy: { matricule: 'desc' },
+      select: { matricule: true }
+    })
+    const lastSeq = lastStudent ? (parseInt(lastStudent.matricule.slice(prefix.length + 1), 10) || 0) : 0
+    const matricule = `${prefix}-${String(lastSeq + 1).padStart(5, '0')}`
     const gender = mapGender(req.body.gender)
     const birthDate = req.body.birthDate ?? req.body.dateOfBirth
     const parentName = normalizeOptionalString(req.body.parentName)
@@ -283,12 +287,17 @@ studentsRoutes.post(
       })
       const tuitionAmount = req.body.tuitionAmount ?? req.body.schoolFeeAmount
       if (tuitionAmount) {
-        const invoiceCount = await tx.invoice.count({ where: { institutionId: req.institutionId! } })
+        const lastInv = await tx.invoice.findFirst({
+          where: { institutionId: req.institutionId! },
+          orderBy: { number: 'desc' },
+          select: { number: true }
+        })
+        const lastInvSeq = lastInv ? (parseInt(lastInv.number.split('-').pop() ?? '0', 10) || 0) : 0
         await tx.invoice.create({
           data: {
             institutionId: req.institutionId!,
             studentId: created.id,
-            number: `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(5, '0')}`,
+            number: `INV-${new Date().getFullYear()}-${String(lastInvSeq + 1).padStart(5, '0')}`,
             title: normalizeOptionalString(req.body.tuitionTitle) ?? `Frais de scolarité ${institution?.activeAcademicYearName ?? new Date().getFullYear()}`,
             totalAmount: tuitionAmount,
             status: InvoiceStatus.ISSUED,

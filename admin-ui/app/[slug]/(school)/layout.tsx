@@ -26,6 +26,7 @@ import {
   Bell,
   Menu,
   X,
+  Building2,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolUser, type SchoolInstitution } from "@/lib/school-api";
@@ -44,6 +45,7 @@ interface NavItem {
 function buildNavItems(slug: string): NavItem[] {
   return [
     { label: "Tableau de bord", href: `/${slug}/dashboard`, icon: LayoutDashboard },
+    { label: "Mes établissements", href: `/${slug}/etablissements`, icon: Building2, roles: ["CENTRAL_ADMIN"] },
     { separator: true, label: "", sectionLabel: "ACADÉMIQUE" },
     { label: "Apprenants", href: `/${slug}/students`, icon: GraduationCap },
     {
@@ -93,7 +95,7 @@ function filterNavByRole(items: NavItem[], role: string): NavItem[] {
     "Tableau de bord", "Calendrier", "Vacances / Congés", "Communication",
   ];
 
-  if (adminRoles.includes(role)) return items;
+  if (adminRoles.includes(role)) return items.filter((item) => !item.roles || item.roles.includes(role));
 
   if (role === "TEACHER") {
     return items.filter((item) => {
