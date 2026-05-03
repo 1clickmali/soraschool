@@ -86,7 +86,7 @@ export default function ParametresPage() {
       superAdminApi.platformBranding(),
       superAdminApi.superAdmins(),
     ]);
-    if (meRes.data?.user) setMe(meRes.data.user as any);
+    if (meRes.data) setMe(meRes.data as any);
     if (brandingRes.data?.branding) {
       setBranding(brandingRes.data.branding);
       setBrandingForm(brandingRes.data.branding);
