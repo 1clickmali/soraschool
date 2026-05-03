@@ -120,7 +120,7 @@ export default function SettingsPage() {
                 <div key={field.key} className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
                   <div className="mb-3 flex h-24 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
                     {displayUrl
-                      ? <img src={displayUrl} alt={field.label} className="h-full w-full object-contain p-2" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ? <img key={displayUrl} src={displayUrl} alt={field.label} className="h-full w-full object-contain p-2" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       : <span className="text-xs text-gray-600">Aucun fichier</span>
                     }
                   </div>

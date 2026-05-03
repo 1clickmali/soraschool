@@ -168,21 +168,22 @@ export default function ParametresPage() {
           {/* Logo */}
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
             <div className="flex items-center gap-4">
+              {/* Preview — key forces remount when URL changes, avoiding stale display:none */}
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05]">
                 {brandingForm.logoUrl
-                  ? <img src={resolveAssetUrl(brandingForm.logoUrl) ?? ""} alt="Logo" className="h-full w-full object-contain p-1" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  ? <img key={brandingForm.logoUrl} src={resolveAssetUrl(brandingForm.logoUrl) ?? ""} alt="Logo" className="h-full w-full object-contain p-1" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                   : <ImageIcon className="h-8 w-8 text-gray-600" />
                 }
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-white mb-1">Logo de la plateforme</p>
-                <p className="text-xs text-gray-500 mb-3">Collez une URL image (recommandé) ou uploadez un fichier.</p>
-                {/* URL directe — méthode fiable */}
+                <p className="text-xs text-gray-500 mb-3">Collez une URL image ou uploadez un fichier.</p>
+                {/* URL directe */}
                 <div className="flex gap-2">
                   <input
                     className="flex-1 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder:text-gray-600 outline-none focus:border-soraBlue/50"
                     placeholder="https://i.imgur.com/mon-logo.png"
-                    value={brandingForm.logoUrl && !brandingForm.logoUrl.startsWith('/api/') ? brandingForm.logoUrl : ""}
+                    value={brandingForm.logoUrl ?? ""}
                     onChange={(e) => setBrandingForm((f) => ({ ...f, logoUrl: e.target.value || null as any }))}
                   />
                   {brandingForm.logoUrl && (
@@ -193,7 +194,7 @@ export default function ParametresPage() {
                 </div>
               </div>
             </div>
-            {/* Upload fichier — secondaire */}
+            {/* Upload fichier */}
             <div className="flex items-center gap-3 border-t border-white/[0.06] pt-3">
               <button
                 onClick={() => logoRef.current?.click()}
@@ -201,10 +202,10 @@ export default function ParametresPage() {
                 className="flex items-center gap-2 rounded-xl border border-dashed border-white/20 px-3 py-2 text-xs text-gray-400 transition hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
               >
                 {logoUploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                {logoUploading ? "Upload..." : "Ou uploader un fichier"}
+                {logoUploading ? "Upload en cours..." : "Ou uploader un fichier"}
               </button>
               <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={uploadLogo} />
-              <span className="text-xs text-gray-600">PNG, JPG recommandé · max 5 MB</span>
+              <span className="text-xs text-gray-600">PNG, JPG · max 5 MB</span>
             </div>
           </div>
 
