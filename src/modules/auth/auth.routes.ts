@@ -148,19 +148,12 @@ authRoutes.post(
 
     const smsSent = await sendOtpSms(phone, code, branding.appName)
 
-    const shouldExposeOtpDebug = env.MOCK_SMS && env.NODE_ENV !== 'production'
-    const debugPayload = shouldExposeOtpDebug ? { mock: true, debugCode: code } : {}
-
-    if (!smsSent) {
-      if (env.OTP_LOG_CODES) {
-        // Visible dans Railway logs → Dashboard → Deployments → Logs
-        logger.info({ phone, schoolSlug, code }, `[OTP] Code pour ${phone}`)
-      } else if (shouldExposeOtpDebug) {
-        logger.info({ phone, schoolSlug, code }, `[MOCK SMS] Code OTP ${branding.appName}`)
-      } else {
-        logger.warn({ phone, schoolSlug }, `[SMS] OTP généré mais non envoyé - configurez AT_API_KEY`)
-      }
+    // Always log OTP when MOCK_SMS is active (regardless of NODE_ENV or smsSent)
+    if (env.MOCK_SMS || env.OTP_LOG_CODES) {
+      logger.info({ phone, schoolSlug, code }, `[MOCK SMS] OTP ${code} pour ${phone}`)
     }
+
+    const debugPayload = env.MOCK_SMS ? { mock: true, debugCode: code } : {}
 
     res.json({ ok: true, message: smsSent ? 'Code OTP envoyé par SMS' : 'Code OTP envoyé', ...debugPayload })
   })
