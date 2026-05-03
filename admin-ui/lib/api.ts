@@ -463,6 +463,8 @@ export const superAdminApi = {
     api.post<{ suspended: number }>("/api/super-admin/subscriptions/suspend-expired"),
   countryConfigs: () =>
     api.get<{ countries: Array<{ code: string; name: string; nameFr: string; currency: string; language: string; schoolYearStartMonth: number; schoolYearEndMonth: number; educationCycles: unknown[] }> }>("/api/super-admin/country-configs"),
+  superAdmins: () =>
+    api.get<{ admins: Array<{ id: string; firstName: string; lastName: string; phone: string; email?: string; createdAt: string; lastLoginAt?: string }> }>("/api/super-admin/super-admins"),
   createSuperAdmin: (data: CreateSuperAdminInput) =>
     api.post<{ user: UserProfile }>("/api/super-admin/super-admins", data),
   syncDefaultPlans: () => api.post<{ plans: BackendPlan[] }>("/api/super-admin/plans/sync-defaults"),

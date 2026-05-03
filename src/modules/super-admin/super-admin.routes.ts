@@ -986,6 +986,18 @@ superAdminRoutes.get(
 
 // ── Super Admins ────────────────────────────────────────────────────────────────
 
+superAdminRoutes.get(
+  '/super-admins',
+  asyncHandler(async (_req, res) => {
+    const admins = await prisma.user.findMany({
+      where: { role: UserRole.SUPER_ADMIN, isActive: true },
+      select: { id: true, firstName: true, lastName: true, phone: true, email: true, createdAt: true, lastLoginAt: true },
+      orderBy: { createdAt: 'asc' }
+    })
+    res.json({ admins })
+  })
+)
+
 superAdminRoutes.post(
   '/super-admins',
   validate(superAdminUserSchema),
