@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, ImageIcon, Palette, Save, Settings, Upload } from "lucide-react";
+import { Building2, ImageIcon, Link, Palette, Save, Settings, Upload } from "lucide-react";
 import { schoolApi, type SchoolSettings } from "@/lib/school-api";
 import { SecureImage } from "@/components/ui/secure-image";
+import { resolveAssetUrl } from "@/lib/api-url";
 
 type AssetKey = "logoUrl" | "sealUrl" | "signatureUrl";
 
@@ -112,25 +113,38 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            {assetFields.map((field) => (
-              <div key={field.key} className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
-                <div className="mb-3 flex h-24 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
-                  <SecureImage
-                    src={settings[field.key]}
-                    alt={field.label}
-                    className="h-full w-full object-contain p-2"
-                    fallback={<span className="text-xs text-gray-600">Aucun fichier</span>}
-                  />
+            {assetFields.map((field) => {
+              const currentUrl = settings[field.key];
+              const displayUrl = currentUrl ? resolveAssetUrl(currentUrl) : null;
+              return (
+                <div key={field.key} className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
+                  <div className="mb-3 flex h-24 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+                    {displayUrl
+                      ? <img src={displayUrl} alt={field.label} className="h-full w-full object-contain p-2" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      : <span className="text-xs text-gray-600">Aucun fichier</span>
+                    }
+                  </div>
+                  <p className="text-sm font-semibold text-white">{field.label}</p>
+                  <p className="mt-1 min-h-8 text-xs text-gray-500">{field.help}</p>
+                  {/* URL directe */}
+                  <div className="mt-2 flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2 py-1.5">
+                    <Link className="h-3 w-3 shrink-0 text-gray-600" />
+                    <input
+                      className="flex-1 bg-transparent text-xs text-white placeholder:text-gray-600 outline-none"
+                      placeholder="https://... (coller URL)"
+                      value={currentUrl && /^https?:\/\//.test(currentUrl) ? currentUrl : ""}
+                      onChange={(e) => update(field.key, e.target.value)}
+                    />
+                  </div>
+                  {/* Upload */}
+                  <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/[0.05] px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/[0.09]">
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploading === field.key ? "Import..." : "Ou importer fichier"}
+                    <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => void uploadAsset(field, event.target.files?.[0])} />
+                  </label>
                 </div>
-                <p className="text-sm font-semibold text-white">{field.label}</p>
-                <p className="mt-1 min-h-8 text-xs text-gray-500">{field.help}</p>
-                <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/[0.05] px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/[0.09]">
-                  <Upload className="h-3.5 w-3.5" />
-                  {uploading === field.key ? "Import..." : "Importer"}
-                  <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => void uploadAsset(field, event.target.files?.[0])} />
-                </label>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
