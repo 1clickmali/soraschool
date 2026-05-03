@@ -42,10 +42,17 @@ export function isCorsOriginAllowed(origin?: string) {
   if (!origin) return true;
   if (corsOrigins.includes('*')) return env.NODE_ENV !== 'production';
   if (corsOrigins.includes(origin)) return true;
-  if (env.NODE_ENV === 'production') return false;
 
   try {
     const { hostname, port } = new URL(origin);
+
+    // Always allow Vercel deployment domains
+    if (hostname.endsWith('.vercel.app')) return true;
+    // Always allow Railway deployment domains
+    if (hostname.endsWith('.railway.app')) return true;
+
+    if (env.NODE_ENV === 'production') return false;
+
     const isPrivateLan =
       hostname === 'localhost' ||
       hostname === '127.0.0.1' ||

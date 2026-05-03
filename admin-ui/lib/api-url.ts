@@ -29,3 +29,13 @@ export function getApiBaseUrl() {
 
   return configuredUrl;
 }
+
+// Converts relative asset paths (/api/platform/assets?key=...) to full URLs
+// pointing at the API server (Railway in prod, localhost in dev).
+export function resolveAssetUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  // Already an absolute URL — return as-is
+  if (/^https?:\/\//.test(url)) return url;
+  // Relative path — prefix with the API base URL
+  return `${getApiBaseUrl()}${url.startsWith("/") ? "" : "/"}${url}`;
+}

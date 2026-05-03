@@ -65,12 +65,13 @@ export default function SettingsPage() {
 
   const uploadAsset = async (field: (typeof assetFields)[number], file?: File | null) => {
     if (!file) return;
-    if (!settings.id) {
+    const institutionId = settings.institutionId || settings.id;
+    if (!institutionId) {
       setMessage("Impossible d'uploader : institution introuvable.");
       return;
     }
     setUploading(field.key);
-    const { data, error } = await schoolApi.uploadDocuments("INSTITUTION", settings.id, field.type, [file], field.label);
+    const { data, error } = await schoolApi.uploadDocuments("INSTITUTION", institutionId, field.type, [file], field.label);
     setUploading(null);
     if (error) {
       setMessage(error);

@@ -22,6 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { authApi, superAdminApi, type PlatformBranding } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/api-url";
 import { cn } from "@/lib/utils";
 
 const inputCls =
@@ -168,7 +169,7 @@ export default function ParametresPage() {
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05]">
               {brandingForm.logoUrl
-                ? <img src={brandingForm.logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                ? <img src={resolveAssetUrl(brandingForm.logoUrl) ?? ""} alt="Logo" className="h-full w-full object-contain" />
                 : <ImageIcon className="h-7 w-7 text-gray-600" />
               }
             </div>
