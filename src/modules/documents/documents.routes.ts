@@ -275,7 +275,16 @@ documentsRoutes.get(
     const filePath = resolveStoragePath(document.fileKey)
     if (!fs.existsSync(filePath)) throw notFound('Fichier introuvable')
     res.setHeader('Content-Type', document.mimeType)
-    res.download(filePath, safeDownloadName(document.title))
+    // Allow cross-origin embedding (logos, seals, signatures displayed from Vercel)
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+    const isImage = document.mimeType.startsWith('image/')
+    if (isImage) {
+      res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(document.title)}"`)
+      res.setHeader('Cache-Control', 'public, max-age=86400')
+      res.sendFile(filePath)
+    } else {
+      res.download(filePath, safeDownloadName(document.title))
+    }
   })
 )
 

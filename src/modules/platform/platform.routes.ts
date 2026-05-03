@@ -21,10 +21,13 @@ platformRoutes.get(
     const fileKey = typeof req.query.key === 'string' ? req.query.key : ''
     const filePath = fileKey ? resolvePlatformAsset(fileKey) : null
     if (!filePath) throw notFound('Fichier introuvable')
+    // Override helmet's same-origin policy so cross-origin pages (Vercel) can load these assets
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
     res.sendFile(filePath, {
       headers: {
         'Cache-Control': 'public, max-age=86400',
-        'Content-Disposition': `inline; filename="${safeDownloadName(path.basename(filePath), 'asset')}"`
+        'Content-Disposition': `inline; filename="${safeDownloadName(path.basename(filePath), 'asset')}"`,
+        'Cross-Origin-Resource-Policy': 'cross-origin'
       }
     })
   })
