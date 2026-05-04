@@ -388,7 +388,7 @@ export default function StudentsPage() {
                             className="w-9 h-9 rounded-full object-cover ring-2 ring-emerald-500/20 flex-shrink-0"
                             fallback={(
                               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                                {(s.firstName[0] + (s.lastName[0] || "")).toUpperCase()}
+                                {((s.firstName?.[0] ?? "") + (s.lastName?.[0] ?? "")).toUpperCase() || "?"}
                               </div>
                             )}
                           />
@@ -442,7 +442,7 @@ export default function StudentsPage() {
                     className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20 flex-shrink-0"
                     fallback={(
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                        {(s.firstName[0] + (s.lastName[0] || "")).toUpperCase()}
+                        {((s.firstName?.[0] ?? "") + (s.lastName?.[0] ?? "")).toUpperCase() || "?"}
                       </div>
                     )}
                   />
