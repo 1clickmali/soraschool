@@ -73,7 +73,8 @@ const holidayToEventType: Record<HolidayLeaveType, CalendarEventType> = {
   CLOSURE: CalendarEventType.CLOSURE,
   ADMINISTRATIVE_LEAVE: CalendarEventType.LEAVE,
   TEACHER_LEAVE: CalendarEventType.LEAVE,
-  NO_CLASS_PERIOD: CalendarEventType.VACATION
+  NO_CLASS_PERIOD: CalendarEventType.VACATION,
+  STRIKE: CalendarEventType.CLOSURE
 }
 
 const eventSchema = z.object({
