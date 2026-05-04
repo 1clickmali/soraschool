@@ -319,6 +319,13 @@ export const schoolApi = {
       contractType: mapContract(data.contractType),
       baseSalary: data.baseSalary ?? data.salary ?? 0,
     }),
+  updateTeacher: (id: string, data: Partial<CreateTeacherInput>) =>
+    patch<{ teacher: Teacher }>(`/api/teachers/${id}`, {
+      ...data,
+      specialization: data.specialization || data.speciality,
+      contractType: data.contractType ? mapContract(data.contractType) : undefined,
+    }),
+  deleteTeacher: (id: string) => del<{ ok: boolean }>(`/api/teachers/${id}`),
 
   classes: (search?: string, gradeLevelId?: string) => {
     const params = new URLSearchParams();
@@ -332,6 +339,9 @@ export const schoolApi = {
       ...data,
       gradeLevelId: data.gradeLevelId || data.levelId || undefined,
     }),
+  updateClass: (id: string, data: { name?: string; capacity?: number; mainTeacherId?: string | null; gradeLevelId?: string | null }) =>
+    patch<{ classroom: Classroom }>(`/api/academics/classes/${id}`, data),
+  deleteClass: (id: string) => del<{ ok: boolean }>(`/api/academics/classes/${id}`),
 
   academicYears: () => get<{ academicYears: AcademicYear[] }>("/api/academics/academic-years"),
   subjects: (options?: { includeInactive?: boolean }) =>
@@ -585,7 +595,7 @@ export const schoolApi = {
 export interface SchoolUser {
   id: string;
   phone: string;
-  role: "SUPER_ADMIN" | "CENTRAL_ADMIN" | "DIRECTOR" | "ADMINISTRATION" | "TEACHER" | "PARENT";
+  role: "SUPER_ADMIN" | "CENTRAL_ADMIN" | "DIRECTOR" | "ADMINISTRATION" | "TEACHER" | "PARENT" | "STUDENT" | "ACCOUNTANT" | "SECRETARIAT" | "STOCK_MANAGER";
   name?: string;
   firstName?: string;
   lastName?: string;
@@ -895,6 +905,9 @@ export interface Classroom {
   gradeLevelId?: string;
   level?: Level;
   gradeLevel?: Level;
+  academicYear?: AcademicYear;
+  academicYearId?: string;
+  mainTeacher?: Teacher;
   capacity?: number;
   description?: string;
   teacherCount?: number;

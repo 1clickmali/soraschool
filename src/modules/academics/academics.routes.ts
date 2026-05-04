@@ -231,6 +231,50 @@ academicsRoutes.post(
   })
 )
 
+academicsRoutes.patch(
+  '/classes/:id',
+  requireRoles(...managementRoles),
+  validate(z.object({
+    params: z.object({ id: z.string() }),
+    body: z.object({
+      name: z.string().min(1).optional(),
+      capacity: z.number().int().positive().optional(),
+      mainTeacherId: z.string().nullable().optional(),
+      gradeLevelId: z.string().nullable().optional()
+    })
+  })),
+  asyncHandler(async (req, res) => {
+    const classroom = await prisma.classroom.findFirst({
+      where: { id: req.params.id, institutionId: req.institutionId! }
+    })
+    if (!classroom) throw notFound('Classe introuvable')
+    const updated = await prisma.classroom.update({
+      where: { id: classroom.id },
+      data: req.body,
+      include: { gradeLevel: true, academicYear: true, mainTeacher: true, _count: { select: { students: true, assignments: true } } }
+    })
+    res.json({ classroom: updated })
+  })
+)
+
+academicsRoutes.delete(
+  '/classes/:id',
+  requireRoles(UserRole.CENTRAL_ADMIN, UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  validate(z.object({ params: z.object({ id: z.string() }) })),
+  asyncHandler(async (req, res) => {
+    const classroom = await prisma.classroom.findFirst({
+      where: { id: req.params.id, institutionId: req.institutionId! },
+      include: { _count: { select: { students: true } } }
+    })
+    if (!classroom) throw notFound('Classe introuvable')
+    if (classroom._count.students > 0) {
+      throw badRequest(`Impossible de supprimer cette classe : ${classroom._count.students} élève(s) y sont inscrits. Désaffectez-les d'abord.`)
+    }
+    await prisma.classroom.delete({ where: { id: classroom.id } })
+    res.json({ ok: true })
+  })
+)
+
 academicsRoutes.get(
   '/subjects',
   asyncHandler(async (req, res) => {

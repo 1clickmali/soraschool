@@ -166,6 +166,7 @@ enum HolidayLeaveType {
   ADMINISTRATIVE_LEAVE
   TEACHER_LEAVE
   NO_CLASS_PERIOD
+  STRIKE
 }
 
 enum CalendarEventPriority {
@@ -1514,6 +1515,7 @@ model DisciplineScore {
   institutionId String
   studentId     String   @unique
   score         Int      @default(100)
+  atRisk        Boolean  @default(false)
   updatedAt     DateTime @updatedAt
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)

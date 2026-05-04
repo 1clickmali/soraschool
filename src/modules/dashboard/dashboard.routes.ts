@@ -82,6 +82,55 @@ dashboardRoutes.get(
       return res.json({ role: req.user!.role, children })
     }
 
+    if (req.user!.role === UserRole.STUDENT) {
+      const student = await prisma.student.findFirst({
+        where: { userId: req.user!.id, institutionId: req.institutionId! },
+        include: {
+          classroom: { include: { gradeLevel: true, academicYear: true } },
+          disciplineScore: true
+        }
+      })
+      if (!student) return res.json({ role: req.user!.role, student: null })
+
+      const today = new Date().getDay() || 7
+      const [recentGrades, recentAbsences, upcomingHomeworks, todaySchedule] = await Promise.all([
+        prisma.grade.findMany({
+          where: { studentId: student.id, institutionId: req.institutionId! },
+          include: { subject: true, period: true },
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        }),
+        prisma.studentAttendance.findMany({
+          where: { studentId: student.id, institutionId: req.institutionId!, status: { in: ['ABSENT', 'LATE'] } },
+          orderBy: { createdAt: 'desc' },
+          take: 5
+        }),
+        student.classroomId
+          ? prisma.homework.findMany({
+              where: { classroomId: student.classroomId, institutionId: req.institutionId!, status: { in: ['ASSIGNED', 'CORRECTING'] } },
+              include: { subject: true, classroom: true },
+              orderBy: { dueDate: 'asc' },
+              take: 5
+            })
+          : [],
+        student.classroomId
+          ? prisma.scheduleSlot.findMany({
+              where: { classroomId: student.classroomId, institutionId: req.institutionId!, dayOfWeek: today },
+              include: { subject: true, teacher: true },
+              orderBy: { startsAt: 'asc' }
+            })
+          : []
+      ])
+      return res.json({
+        role: req.user!.role,
+        student,
+        recentGrades,
+        recentAbsences,
+        upcomingHomeworks,
+        todaySchedule
+      })
+    }
+
     if (req.user!.role === UserRole.CENTRAL_ADMIN) {
       return res.json(await buildCentralDashboard(req.institutionId!))
     }

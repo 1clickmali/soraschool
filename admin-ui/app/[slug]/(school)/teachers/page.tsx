@@ -16,6 +16,7 @@ import {
   FileText,
   CreditCard,
   Briefcase,
+  Trash2,
 } from "lucide-react";
 import { downloadProtectedFile, schoolApi, type Teacher, type Subject, type Classroom, type CreateTeacherInput } from "@/lib/school-api";
 import { SecureImage } from "@/components/ui/secure-image";
@@ -118,12 +119,21 @@ export default function TeachersPage() {
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editTeacherId, setEditTeacherId] = useState<string | null>(null);
+  const [deleteTeacherId, setDeleteTeacherId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Record<string, File[]>>({});
+  const [editForm, setEditForm] = useState<{ firstName: string; lastName: string; phone: string; email: string; specialization: string; address: string; contractType: "CDI" | "CDD" | "VACATION" | "VACATAIRE" | "STAGE" }>({
+    firstName: "", lastName: "", phone: "", email: "", specialization: "", address: "", contractType: "CDI"
+  });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
   const [form, setForm] = useState<CreateTeacherInput>({
     firstName: "",
@@ -248,6 +258,53 @@ export default function TeachersPage() {
         ? f.classIds.filter((c) => c !== id)
         : [...(f.classIds || []), id],
     }));
+  };
+
+  const openEditModal = (teacher: Teacher) => {
+    setEditTeacherId(teacher.id);
+    setEditForm({
+      firstName: teacher.firstName || "",
+      lastName: teacher.lastName || "",
+      phone: teacher.phone || "",
+      email: teacher.email || "",
+      specialization: teacher.specialization || teacher.speciality || "",
+      address: teacher.address || "",
+      contractType: teacher.contractType || "CDI",
+    });
+    setEditError(null);
+    setEditSuccess(null);
+    setEditModalOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editTeacherId || !editForm.firstName.trim() || !editForm.lastName.trim()) {
+      setEditError("Prénom et nom sont requis");
+      return;
+    }
+    setEditError(null);
+    setSaving(true);
+    const { error } = await schoolApi.updateTeacher(editTeacherId, editForm);
+    setSaving(false);
+    if (error) { setEditError(error); return; }
+    setEditSuccess("Enseignant modifié !");
+    setTimeout(() => { setEditModalOpen(false); loadTeachers(); }, 900);
+  };
+
+  const openDeleteConfirm = (teacher: Teacher) => {
+    setDeleteTeacherId(teacher.id);
+    setActionMessage(null);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTeacherId) return;
+    setSaving(true);
+    const { error } = await schoolApi.deleteTeacher(deleteTeacherId);
+    setSaving(false);
+    setDeleteConfirmOpen(false);
+    if (error) { setActionMessage(error); return; }
+    setActionMessage("Enseignant retiré avec succès.");
+    loadTeachers();
   };
 
   return (
@@ -423,8 +480,19 @@ export default function TeachersPage() {
                         >
                           <Briefcase className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors" title="Modifier">
+                        <button
+                          onClick={() => openEditModal(t)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+                          title="Modifier"
+                        >
                           <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openDeleteConfirm(t)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          title="Retirer l'enseignant"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -435,6 +503,75 @@ export default function TeachersPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Edit teacher modal */}
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Modifier l'enseignant">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Prénom" required>
+              <input className={inputCls} value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} />
+            </FormField>
+            <FormField label="Nom" required>
+              <input className={inputCls} value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Téléphone">
+              <input type="tel" className={inputCls} value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+            </FormField>
+            <FormField label="Email">
+              <input type="email" className={inputCls} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </FormField>
+          </div>
+          <FormField label="Spécialité">
+            <input className={inputCls} value={editForm.specialization} onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })} />
+          </FormField>
+          <FormField label="Adresse">
+            <input className={inputCls} value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+          </FormField>
+          <FormField label="Type de contrat">
+            <select className={selectCls} value={editForm.contractType} onChange={(e) => setEditForm({ ...editForm, contractType: e.target.value as "CDI" | "CDD" | "VACATION" | "VACATAIRE" | "STAGE" })}>
+              <option value="CDI">CDI</option>
+              <option value="CDD">CDD</option>
+              <option value="VACATION">Vacataire</option>
+              <option value="STAGE">Stage</option>
+            </select>
+          </FormField>
+          <AnimatePresence>
+            {editError && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />{editError}
+              </motion.div>
+            )}
+            {editSuccess && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />{editSuccess}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setEditModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm hover:bg-white/[0.04] hover:text-white transition-all">Annuler</button>
+            <button onClick={handleEdit} disabled={saving} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all disabled:opacity-60">
+              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Enregistrer"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete confirm modal */}
+      <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Retirer l'enseignant">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-300">
+            Cette action passera le statut de l&apos;enseignant à <span className="text-red-400 font-semibold">TERMINATED</span>. Il ne pourra plus se connecter ni apparaître dans les listes actives.
+          </p>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setDeleteConfirmOpen(false)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm hover:bg-white/[0.04] hover:text-white transition-all">Annuler</button>
+            <button onClick={handleDelete} disabled={saving} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-all disabled:opacity-60">
+              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Retirer</>}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Add teacher modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Ajouter un enseignant">

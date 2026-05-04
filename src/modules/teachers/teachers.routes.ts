@@ -264,3 +264,19 @@ teachersRoutes.get(
     res.send(buffer)
   })
 )
+
+teachersRoutes.delete(
+  '/:id',
+  requireRoles(...managementRoles),
+  asyncHandler(async (req, res) => {
+    const teacher = await prisma.teacher.findFirst({
+      where: { id: req.params.id, institutionId: req.institutionId! }
+    })
+    if (!teacher) throw notFound('Enseignant introuvable')
+    await prisma.teacher.update({
+      where: { id: teacher.id },
+      data: { status: 'TERMINATED' as const }
+    })
+    res.json({ ok: true })
+  })
+)

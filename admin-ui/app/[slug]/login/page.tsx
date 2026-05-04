@@ -241,7 +241,9 @@ export default function SchoolLoginPage() {
         ? `/${slug}/parent/dashboard`
         : data.user.role === "TEACHER"
           ? `/${slug}/teacher/dashboard`
-          : `/${slug}/dashboard`;
+          : data.user.role === "STUDENT"
+            ? `/${slug}/student/dashboard`
+            : `/${slug}/dashboard`;
     setTimeout(() => router.push(nextPath), 800);
   };
 
