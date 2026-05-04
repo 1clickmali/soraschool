@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0",
     "archiver": "^7.0.1",
     "bcryptjs": "^2.4.3",
     "bwip-js": "^4.5.1",
@@ -59,7 +60,6 @@
     "@types/supertest": "^6.0.2",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.7",
-    "prisma": "^5.22.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

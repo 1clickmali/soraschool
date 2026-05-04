@@ -56,6 +56,9 @@ importers:
       pino-http:
         specifier: ^10.4.0
         version: 10.5.0
+      prisma:
+        specifier: ^5.22.0
+        version: 5.22.0
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -114,9 +117,6 @@ importers:
       '@types/swagger-ui-express':
         specifier: ^4.1.7
         version: 4.1.8
-      prisma:
-        specifier: ^5.22.0
-        version: 5.22.0
       supertest:
         specifier: ^7.0.0
         version: 7.2.2
