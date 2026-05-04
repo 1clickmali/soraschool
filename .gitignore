@@ -4,6 +4,8 @@ dist
 admin-ui/.next
 admin-ui/.next.*
 admin-ui/node_modules
+admin-ui/tsconfig.tsbuildinfo
+tsconfig.tsbuildinfo
 .env
 .DS_Store
 storage/*
