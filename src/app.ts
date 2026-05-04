@@ -31,6 +31,7 @@ import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { scheduleRoutes } from './modules/schedule/schedule.routes'
 import { homeworksRoutes } from './modules/homeworks/homeworks.routes'
 import { calendarRoutes } from './modules/calendar/calendar.routes'
+import { reportsRoutes } from './modules/reports/reports.routes'
 import { platformRoutes } from './modules/platform/platform.routes'
 import { getPlatformBranding } from './lib/platform-branding'
 import { enforceSubscription } from './middlewares/subscription'
@@ -123,6 +124,7 @@ export function createApp() {
   app.use('/api/documents', sub, documentsRoutes)
   app.use('/api/messages', sub, messagesRoutes)
   app.use('/api/dashboard', sub, dashboardRoutes)
+  app.use('/api/reports', sub, reportsRoutes)
 
   app.use((_req, _res, next) => next(new ApiError(404, 'Route introuvable', 'ROUTE_NOT_FOUND')))
   app.use(errorHandler)

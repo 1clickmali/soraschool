@@ -591,6 +591,54 @@ export const schoolApi = {
     }),
 };
 
+export type ReportType = "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "SEMESTER" | "ANNUAL" | "SCHOOL_YEAR";
+export type ExportFormat = "PDF" | "EXCEL" | "CSV";
+
+export interface ReportFilters {
+  reportType?: ReportType;
+  startDate?: string;
+  endDate?: string;
+  classroomId?: string;
+  teacherId?: string;
+  subjectId?: string;
+  academicYearId?: string;
+  sections?: string;
+}
+
+export interface ExportLog {
+  id: string;
+  userId: string;
+  userRole: string;
+  reportType: ReportType;
+  sections: string[];
+  format: ExportFormat;
+  fileName: string;
+  ipAddress?: string;
+  createdAt: string;
+  user?: { firstName: string; lastName: string; role: string };
+}
+
+function buildReportQuery(filters: ReportFilters): string {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export const reportsApi = {
+  preview: (filters: ReportFilters) =>
+    get<{ ok: boolean; data: Record<string, unknown>; meta: { startDate: string; endDate: string; reportType: ReportType } }>(
+      `/api/reports/preview${buildReportQuery(filters)}`
+    ),
+  history: (page = 1) =>
+    get<{ logs: ExportLog[]; total: number; page: number; limit: number }>(
+      `/api/reports/history?page=${page}`
+    ),
+  exportUrl: (format: "pdf" | "excel" | "csv", filters: ReportFilters): string => {
+    return `${apiUrl(`/api/reports/export/${format}${buildReportQuery(filters)}`)}`;
+  },
+};
+
 // Types
 export interface SchoolUser {
   id: string;

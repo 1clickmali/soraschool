@@ -29,6 +29,7 @@ import {
   Building2,
   CreditCard,
   Clock,
+  BarChart2,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolUser, type SchoolInstitution } from "@/lib/school-api";
@@ -85,6 +86,10 @@ function buildNavItems(slug: string): NavItem[] {
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
     { separator: true, label: "", sectionLabel: "ADMIN" },
+    {
+      label: "Rapports & exports", href: `/${slug}/rapports`, icon: BarChart2,
+      roles: ["DIRECTOR", "CENTRAL_ADMIN", "ACCOUNTANT", "SECRETARIAT", "ADMINISTRATION"],
+    },
     {
       label: "Mon abonnement", href: `/${slug}/abonnement`, icon: CreditCard,
       roles: ["DIRECTOR"],

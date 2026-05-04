@@ -386,6 +386,7 @@ model Institution {
   auditLogs           AuditLog[]
   calendarEvents      CalendarEvent[]
   holidayLeaves       HolidayLeave[]
+  exportLogs          ExportLog[]
 }
 
 model Subscription {
@@ -549,6 +550,7 @@ model User {
   createdCalendarEvents       CalendarEvent[]                  @relation("CalendarEventCreator")
   createdHolidayLeaves        HolidayLeave[]                   @relation("HolidayLeaveCreator")
   validatedHolidayLeaves      HolidayLeave[]                   @relation("HolidayLeaveValidator")
+  exportLogs                  ExportLog[]
 
   @@unique([institutionId, phone])
   @@index([institutionId, role])
@@ -1559,4 +1561,56 @@ enum JustifStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ─── EXPORT LOG (Audit des rapports générés) ─────────────────────────────────
+
+enum ExportFormat {
+  PDF
+  EXCEL
+  CSV
+}
+
+enum ReportType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMESTER
+  ANNUAL
+  SCHOOL_YEAR
+  CUSTOM
+}
+
+enum ReportSection {
+  SUMMARY
+  FINANCE
+  PEDAGOGY
+  ATTENDANCE
+  TEACHERS
+  DISCIPLINE
+  ADMINISTRATIVE
+  CALENDAR
+  ALL
+}
+
+model ExportLog {
+  id            String        @id @default(cuid())
+  institutionId String
+  userId        String
+  userRole      String
+  reportType    ReportType
+  sections      String[]
+  format        ExportFormat
+  filters       Json?
+  fileName      String
+  fileSizeBytes Int?
+  ipAddress     String?
+  createdAt     DateTime      @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId])
+  @@index([userId])
 }
