@@ -361,16 +361,21 @@ export const schoolApi = {
       provider: mapProvider(data.provider || data.method),
     }),
 
-  attendance: (date?: string, classroomId?: string) => {
+  attendanceSlots: (date?: string) => {
+    const qs = date ? `?date=${date}` : "";
+    return get<{ slots: AttendanceSlot[]; date: string }>(`/api/attendance/slots${qs}`);
+  },
+  attendance: (date?: string, classroomId?: string, scheduleSlotId?: string) => {
     const params = new URLSearchParams();
     if (date) params.append("date", date);
     if (classroomId) params.append("classroomId", classroomId);
+    if (scheduleSlotId) params.append("scheduleSlotId", scheduleSlotId);
     const qs = params.toString();
     return get<{ records: AttendanceRecord[] }>(`/api/attendance/students${qs ? `?${qs}` : ""}`);
   },
-  saveAttendance: (classroomId: string, date: string, records: Array<{ studentId: string; status: string; reason?: string }>) =>
+  saveAttendance: (scheduleSlotId: string, date: string, records: Array<{ studentId: string; status: string; reason?: string }>) =>
     post<{ session: AttendanceSession }>("/api/attendance/student-sessions", {
-      classroomId,
+      scheduleSlotId,
       date,
       records,
     }),
@@ -1275,6 +1280,16 @@ export interface SchoolDocument {
 export interface AttendanceSession {
   id: string;
   records: AttendanceRecord[];
+}
+
+export interface AttendanceSlot extends ScheduleSlot {
+  classroom: Classroom;
+  teacher?: Teacher | null;
+  subject?: Subject | null;
+  attendanceSessions: Array<{
+    id: string;
+    records: Array<{ studentId: string; status: string }>;
+  }>;
 }
 
 export interface ScheduleSlot {

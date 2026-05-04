@@ -15,6 +15,8 @@ attendanceRoutes.use(authenticate, requireTenantUser)
 
 const teacherPresenceAdminRoles = [UserRole.DIRECTOR, UserRole.ADMINISTRATION] as const
 
+const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+
 function dayRange(value: Date | string) {
   const date = value instanceof Date ? new Date(value) : new Date(value)
   if (Number.isNaN(date.getTime())) throw badRequest('Date invalide')
@@ -34,7 +36,7 @@ function sendCsv(res: Response, filename: string, rows: unknown[][]) {
   const content = rows.map((row) => row.map(csvValue).join(',')).join('\n')
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-  res.send(`\uFEFF${content}`)
+  res.send(`﻿${content}`)
 }
 
 function formatDate(value: Date | string | null | undefined) {
@@ -63,16 +65,10 @@ async function teacherClassroomIds(userId: string, institutionId: string) {
   return { teacher, classroomIds: assignments.map((assignment) => assignment.classroomId) }
 }
 
-async function assertTeacherClassroomAccess(req: Request, classroomId: string) {
-  if (req.user!.role !== UserRole.TEACHER) return undefined
-  const { teacher, classroomIds } = await teacherClassroomIds(req.user!.id, req.institutionId!)
-  if (!classroomIds.includes(classroomId)) throw forbidden('Vous pouvez faire l’appel uniquement dans vos classes')
-  return teacher.id
-}
-
 async function studentAttendanceWhere(req: Request) {
   const { start, end } = req.query.date ? dayRange(String(req.query.date)) : { start: undefined, end: undefined }
   const classroomId = req.query.classroomId ? String(req.query.classroomId) : undefined
+  const scheduleSlotId = req.query.scheduleSlotId ? String(req.query.scheduleSlotId) : undefined
   let classroomFilter: string | { in: string[] } | undefined = classroomId
 
   if (req.user!.role === UserRole.TEACHER) {
@@ -86,7 +82,7 @@ async function studentAttendanceWhere(req: Request) {
   return {
     institutionId: req.institutionId!,
     session: {
-      classroomId: classroomFilter,
+      ...(scheduleSlotId ? { scheduleSlotId } : { classroomId: classroomFilter }),
       date: start && end ? { gte: start, lt: end } : undefined
     },
     student: req.query.search
@@ -101,14 +97,54 @@ async function studentAttendanceWhere(req: Request) {
   }
 }
 
+// Returns schedule slots for a given date with attendance status
+attendanceRoutes.get(
+  '/slots',
+  asyncHandler(async (req, res) => {
+    const institutionId = req.institutionId!
+    const dateStr = req.query.date ? String(req.query.date) : new Date().toISOString().split('T')[0]
+    const { start, end } = dayRange(dateStr)
+    const dayOfWeek = new Date(dateStr).getDay()
+
+    let teacherIdFilter: string | undefined
+    if (req.user!.role === UserRole.TEACHER) {
+      const teacher = await teacherProfile(req.user!.id, institutionId)
+      if (!teacher) throw forbidden('Profil professeur introuvable')
+      teacherIdFilter = teacher.id
+    }
+
+    const slots = await prisma.scheduleSlot.findMany({
+      where: {
+        institutionId,
+        dayOfWeek,
+        ...(teacherIdFilter ? { teacherId: teacherIdFilter } : {})
+      },
+      include: {
+        classroom: true,
+        teacher: true,
+        subject: true,
+        attendanceSessions: {
+          where: { date: { gte: start, lt: end } },
+          select: {
+            id: true,
+            records: { select: { studentId: true, status: true } }
+          }
+        }
+      },
+      orderBy: { startsAt: 'asc' }
+    })
+
+    res.json({ slots, date: dateStr })
+  })
+)
+
 attendanceRoutes.post(
   '/student-sessions',
   requireRoles(UserRole.TEACHER, UserRole.DIRECTOR, UserRole.ADMINISTRATION),
   validate(
     z.object({
       body: z.object({
-        classroomId: z.string(),
-        scheduleSlotId: z.string().optional(),
+        scheduleSlotId: z.string(),
         date: z.coerce.date().default(() => new Date()),
         note: z.string().optional(),
         records: z.array(
@@ -123,20 +159,37 @@ attendanceRoutes.post(
   ),
   asyncHandler(async (req, res) => {
     const institutionId = req.institutionId!
-    const teacherId = await assertTeacherClassroomAccess(req, req.body.classroomId)
+    const scheduleSlotId = req.body.scheduleSlotId
+
+    const slot = await prisma.scheduleSlot.findFirst({
+      where: { id: scheduleSlotId, institutionId }
+    })
+    if (!slot) throw badRequest("Créneau d'emploi du temps introuvable")
+
     const { start, end, date } = dayRange(req.body.date)
-    const scheduleSlotId: string | undefined = req.body.scheduleSlotId
+
+    const dateDayOfWeek = date.getDay()
+    if (slot.dayOfWeek !== dateDayOfWeek) {
+      throw badRequest(
+        `Ce créneau est prévu le ${DAY_NAMES[slot.dayOfWeek]}, pas le ${DAY_NAMES[dateDayOfWeek]}`
+      )
+    }
+
+    let teacherId: string | undefined
+    if (req.user!.role === UserRole.TEACHER) {
+      const teacher = await teacherProfile(req.user!.id, institutionId)
+      if (!teacher) throw forbidden('Profil professeur introuvable')
+      if (slot.teacherId && slot.teacherId !== teacher.id) {
+        throw forbidden("Ce créneau ne vous est pas assigné")
+      }
+      teacherId = teacher.id
+    }
+
+    const classroomId = slot.classroomId
 
     const session = await prisma.$transaction(async (tx) => {
-      const where = {
-        institutionId,
-        classroomId: req.body.classroomId,
-        date: { gte: start, lt: end },
-        ...(scheduleSlotId ? { scheduleSlotId } : {})
-      }
-
       const sessions = await tx.attendanceSession.findMany({
-        where,
+        where: { institutionId, classroomId, scheduleSlotId, date: { gte: start, lt: end } },
         orderBy: { createdAt: 'desc' }
       })
       const records = req.body.records.map((record: { studentId: string; status: AttendanceStatus; reason?: string }) => ({
@@ -150,7 +203,7 @@ attendanceRoutes.post(
         return tx.attendanceSession.create({
           data: {
             institutionId,
-            classroomId: req.body.classroomId,
+            classroomId,
             teacherId,
             scheduleSlotId,
             date,
@@ -162,16 +215,15 @@ attendanceRoutes.post(
       }
 
       const [activeSession, ...duplicates] = sessions
-      await tx.studentAttendance.deleteMany({ where: { sessionId: { in: sessions.map((item) => item.id) } } })
+      await tx.studentAttendance.deleteMany({ where: { sessionId: { in: sessions.map((s) => s.id) } } })
       if (duplicates.length > 0) {
-        await tx.attendanceSession.deleteMany({ where: { id: { in: duplicates.map((item) => item.id) } } })
+        await tx.attendanceSession.deleteMany({ where: { id: { in: duplicates.map((s) => s.id) } } })
       }
       return tx.attendanceSession.update({
         where: { id: activeSession.id },
         data: {
           teacherId,
           scheduleSlotId,
-          date,
           note: req.body.note,
           records: { create: records }
         },
@@ -179,7 +231,6 @@ attendanceRoutes.post(
       })
     })
 
-    // Notify parents of absent students (fire-and-forget)
     const absentRecords = (session.records ?? []).filter(
       (r: { status: AttendanceStatus }) => r.status === AttendanceStatus.ABSENT
     )
