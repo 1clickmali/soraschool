@@ -24,6 +24,7 @@ import {
   User,
   X,
   Bell,
+  Clock,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolUser } from "@/lib/school-api";
@@ -49,6 +50,7 @@ const moreItems = (slug: string) => [
   { label: "Discipline",        href: `/${slug}/teacher/discipline`,        icon: Shield,       color: "from-red-500 to-rose-600"       },
   { label: "Documents",         href: `/${slug}/teacher/documents`,         icon: Folder,       color: "from-indigo-500 to-violet-500"  },
   { label: "Messagerie",        href: `/${slug}/teacher/messagerie`,        icon: MessageSquare,color: "from-teal-500 to-emerald-500"   },
+  { label: "Mon pointage",      href: `/${slug}/teacher/pointage`,          icon: Clock,        color: "from-blue-500 to-sky-600"       },
   { label: "Mon profil",        href: `/${slug}/teacher/mon-profil`,        icon: User,         color: "from-gray-500 to-slate-600"     },
 ];
 

@@ -21,6 +21,8 @@ import { parentsRoutes } from './modules/parents/parents.routes'
 import { gradesRoutes } from './modules/grades/grades.routes'
 import { attendanceRoutes } from './modules/attendance/attendance.routes'
 import { disciplineRoutes } from './modules/discipline/discipline.routes'
+import { notificationsRoutes } from './modules/notifications/notifications.routes'
+import { teacherBadgesRoutes } from './modules/teachers/teacher-badges.routes'
 import { paymentsRoutes } from './modules/payments/payments.routes'
 import { shopRoutes } from './modules/shop/shop.routes'
 import { documentsRoutes } from './modules/documents/documents.routes'
@@ -123,6 +125,8 @@ export function createApp() {
   app.use('/api/grades', sub, gradesRoutes)
   app.use('/api/attendance', sub, attendanceRoutes)
   app.use('/api/discipline', sub, disciplineRoutes)
+  app.use('/api/notifications', sub, notificationsRoutes)
+  app.use('/api/teacher-badges', sub, teacherBadgesRoutes)
   app.use('/api/payments', sub, paymentsRoutes)
   app.use('/api/shop', sub, shopRoutes)
   app.use('/api/documents', sub, documentsRoutes)

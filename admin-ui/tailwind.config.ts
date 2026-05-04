@@ -17,8 +17,8 @@ const config: Config = {
         soraSidebar: "#080D1A",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        heading: ["Poppins", "sans-serif"],
+        sans: ["var(--font-inter)", "Inter", "sans-serif"],
+        heading: ["var(--font-poppins)", "Poppins", "sans-serif"],
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

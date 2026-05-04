@@ -27,6 +27,8 @@ import {
   Menu,
   X,
   Building2,
+  CreditCard,
+  Clock,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolUser, type SchoolInstitution } from "@/lib/school-api";
@@ -78,7 +80,15 @@ function buildNavItems(slug: string): NavItem[] {
     { separator: true, label: "", sectionLabel: "SERVICES" },
     { label: "Documents officiels", href: `/${slug}/documents`, icon: FileText },
     { label: "Communication", href: `/${slug}/messages`, icon: MessageSquare },
+    {
+      label: "Pointage enseignants", href: `/${slug}/teacher-badges`, icon: Clock,
+      roles: ["DIRECTOR", "ADMINISTRATION"],
+    },
     { separator: true, label: "", sectionLabel: "ADMIN" },
+    {
+      label: "Mon abonnement", href: `/${slug}/abonnement`, icon: CreditCard,
+      roles: ["DIRECTOR"],
+    },
     {
       label: "Configuration", href: `/${slug}/settings`, icon: Settings,
       roles: ["DIRECTOR", "ADMINISTRATION"],
@@ -160,6 +170,7 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!isSchoolAuthenticated()) {
@@ -190,6 +201,15 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
     schoolAuthApi.getInstitutionBySlug(slug).then(({ data }) => {
       if (data?.institution) setInstitution(data.institution);
     });
+
+    // Poll unread notifications every 60s
+    const loadUnread = () =>
+      schoolApi.notifications(true).then(({ data }) => {
+        if (data) setUnreadCount(data.unreadCount);
+      });
+    loadUnread();
+    const interval = setInterval(loadUnread, 60_000);
+    return () => clearInterval(interval);
   }, [router, slug]);
 
   const handleLogout = () => {
@@ -462,10 +482,14 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
 
           {/* Right actions */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button className="relative flex h-9 w-9 items-center justify-center rounded-2xl text-gray-500 hover:bg-white/[0.06] hover:text-white transition-all touch-feedback">
+            <Link href={`/${slug}/notifications`} className="relative flex h-9 w-9 items-center justify-center rounded-2xl text-gray-500 hover:bg-white/[0.06] hover:text-white transition-all touch-feedback">
               <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            </button>
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white leading-none">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Link>
             <button
               onClick={handleLogout}
               className="flex h-9 items-center gap-1.5 rounded-2xl px-3 text-sm text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all touch-feedback"

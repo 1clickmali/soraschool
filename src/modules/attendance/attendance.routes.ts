@@ -7,6 +7,8 @@ import { badRequest, forbidden } from '../../lib/errors'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
+import { notifyAbsence } from '../../lib/notifications'
+import { getPlatformBranding } from '../../lib/platform-branding'
 
 export const attendanceRoutes = Router()
 attendanceRoutes.use(authenticate, requireTenantUser)
@@ -106,6 +108,7 @@ attendanceRoutes.post(
     z.object({
       body: z.object({
         classroomId: z.string(),
+        scheduleSlotId: z.string().optional(),
         date: z.coerce.date().default(() => new Date()),
         note: z.string().optional(),
         records: z.array(
@@ -119,19 +122,25 @@ attendanceRoutes.post(
     })
   ),
   asyncHandler(async (req, res) => {
+    const institutionId = req.institutionId!
     const teacherId = await assertTeacherClassroomAccess(req, req.body.classroomId)
     const { start, end, date } = dayRange(req.body.date)
+    const scheduleSlotId: string | undefined = req.body.scheduleSlotId
+
     const session = await prisma.$transaction(async (tx) => {
+      const where = {
+        institutionId,
+        classroomId: req.body.classroomId,
+        date: { gte: start, lt: end },
+        ...(scheduleSlotId ? { scheduleSlotId } : {})
+      }
+
       const sessions = await tx.attendanceSession.findMany({
-        where: {
-          institutionId: req.institutionId!,
-          classroomId: req.body.classroomId,
-          date: { gte: start, lt: end }
-        },
+        where,
         orderBy: { createdAt: 'desc' }
       })
       const records = req.body.records.map((record: { studentId: string; status: AttendanceStatus; reason?: string }) => ({
-        institutionId: req.institutionId!,
+        institutionId,
         studentId: record.studentId,
         status: record.status,
         reason: record.reason
@@ -140,9 +149,10 @@ attendanceRoutes.post(
       if (sessions.length === 0) {
         return tx.attendanceSession.create({
           data: {
-            institutionId: req.institutionId!,
+            institutionId,
             classroomId: req.body.classroomId,
             teacherId,
+            scheduleSlotId,
             date,
             note: req.body.note,
             records: { create: records }
@@ -160,6 +170,7 @@ attendanceRoutes.post(
         where: { id: activeSession.id },
         data: {
           teacherId,
+          scheduleSlotId,
           date,
           note: req.body.note,
           records: { create: records }
@@ -167,6 +178,36 @@ attendanceRoutes.post(
         include: { classroom: true, records: true }
       })
     })
+
+    // Notify parents of absent students (fire-and-forget)
+    const absentRecords = (session.records ?? []).filter(
+      (r: { status: AttendanceStatus }) => r.status === AttendanceStatus.ABSENT
+    )
+    if (absentRecords.length > 0) {
+      const branding = await getPlatformBranding()
+      const dateStr = date.toLocaleDateString('fr-FR')
+      const className = (session as { classroom?: { name?: string } }).classroom?.name ?? ''
+      for (const rec of absentRecords as Array<{ studentId: string }>) {
+        const student = await prisma.student.findUnique({ where: { id: rec.studentId } })
+        if (!student) continue
+        const parentLinks = await prisma.studentParent.findMany({
+          where: { studentId: student.id },
+          include: { parent: { select: { phone: true, userId: true } } }
+        })
+        for (const link of parentLinks) {
+          notifyAbsence({
+            institutionId,
+            studentName: `${student.firstName} ${student.lastName}`,
+            className,
+            date: dateStr,
+            parentUserId: link.parent.userId ?? undefined,
+            parentPhone: link.parent.phone,
+            appName: branding.appName
+          }).catch(() => {})
+        }
+      }
+    }
+
     res.status(201).json({ session })
   })
 )

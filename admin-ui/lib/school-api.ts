@@ -424,7 +424,10 @@ export const schoolApi = {
       kind: data.kind || data.type,
       title: data.title || data.type || "Signalement",
       description: data.description || data.sanctions,
+      points: data.points,
     }),
+  disciplineScores: () =>
+    get<{ scores: DisciplineScoreRecord[] }>("/api/discipline/scores"),
 
   documents: (filters?: { ownerType?: string; ownerId?: string; type?: string; search?: string }) => {
     const params = new URLSearchParams();
@@ -535,6 +538,29 @@ export const schoolApi = {
   settings: () => get<{ institution: SchoolSettings }>("/api/institutions/settings"),
   updateSettings: (data: Partial<SchoolSettings>) =>
     patch<{ institution: SchoolSettings }>("/api/institutions/settings", data),
+
+  mySubscription: () => get<SubscriptionData>("/api/institutions/my-subscription"),
+
+  // Teacher badging
+  teacherCheckIn: () => post<{ badge: TeacherBadge }>("/api/teacher-badges/check-in", {}),
+  teacherCheckOut: () => post<{ badge: TeacherBadge }>("/api/teacher-badges/check-out", {}),
+  teacherBadges: (params?: { teacherId?: string; date?: string; month?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.teacherId) qs.append("teacherId", params.teacherId);
+    if (params?.date) qs.append("date", params.date);
+    if (params?.month) qs.append("month", params.month);
+    return get<{ badges: TeacherBadge[] }>(`/api/teacher-badges${qs.toString() ? `?${qs}` : ""}`);
+  },
+  myBadges: (month?: string) =>
+    get<{ badges: TeacherBadge[] }>(`/api/teacher-badges/my${month ? `?month=${month}` : ""}`),
+
+  // Notifications
+  notifications: (unreadOnly?: boolean) =>
+    get<{ notifications: AppNotification[]; unreadCount: number }>(
+      `/api/notifications${unreadOnly ? "?unread=true" : ""}`
+    ),
+  markNotificationsRead: (ids?: string[]) =>
+    post<{ ok: boolean }>("/api/notifications/mark-read", ids ? { ids } : {}),
 };
 
 // Types
@@ -1121,7 +1147,43 @@ export interface CreateDisciplineInput {
   title?: string;
   description: string;
   sanctions?: string;
+  points?: number;
   date?: string;
+}
+
+export interface TeacherBadge {
+  id: string;
+  institutionId: string;
+  teacherId: string;
+  date: string;
+  checkInAt?: string;
+  checkOutAt?: string;
+  lateMinutes?: number;
+  note?: string;
+  createdAt: string;
+  teacher?: { id: string; firstName: string; lastName: string; matricule: string };
+}
+
+export interface DisciplineScoreRecord {
+  id: string;
+  institutionId: string;
+  studentId: string;
+  score: number;
+  student?: { id: string; firstName: string; lastName: string; matricule: string; classroom?: { name: string } };
+}
+
+export interface AppNotification {
+  id: string;
+  institutionId: string;
+  userId?: string;
+  level: "INFO" | "SUCCESS" | "WARNING" | "DANGER";
+  channel: string;
+  title: string;
+  body?: string;
+  data?: Record<string, unknown>;
+  readAt?: string;
+  sentAt?: string;
+  createdAt: string;
 }
 
 export interface SchoolSettings {
@@ -1147,6 +1209,55 @@ export interface SchoolSettings {
   languages?: string[];
   gradingScale?: number;
   language?: string;
+}
+
+export interface SaaSPlan {
+  id: string;
+  name: string;
+  code: string;
+  tier: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  maxStudents: number | null;
+  maxTeachers: number | null;
+  maxEstablishments: number;
+  features?: Record<string, boolean>;
+}
+
+export interface SaaSSubscription {
+  id: string;
+  status: string;
+  cycle: string;
+  startsAt: string;
+  endsAt: string;
+  trialEndsAt?: string;
+  schoolYears: number;
+  plan: SaaSPlan;
+}
+
+export interface SaaSInvoice {
+  id: string;
+  number: string;
+  amount: number;
+  status: string;
+  createdAt: string;
+  dueAt?: string;
+}
+
+export interface SaaSPayment {
+  id: string;
+  amount: number;
+  status: string;
+  transactionRef?: string;
+  createdAt: string;
+}
+
+export interface SubscriptionData {
+  institution: { id: string; name: string; status: string; trialEndsAt?: string };
+  subscription: SaaSSubscription | null;
+  invoices: SaaSInvoice[];
+  payments: SaaSPayment[];
+  summary: { totalBilled: number; totalPaid: number; remaining: number };
 }
 
 export interface SchoolDocument {

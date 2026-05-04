@@ -46,12 +46,12 @@ export function isCorsOriginAllowed(origin?: string) {
   try {
     const { hostname, port } = new URL(origin);
 
-    // En production : uniquement les origines explicitement listées dans CORS_ORIGIN
-    if (env.NODE_ENV === 'production') return false;
-
-    // En dev/staging : autoriser les domaines Vercel/Railway pour les previews
+    // Toujours autoriser les domaines Vercel et Railway (prod + previews)
     if (hostname.endsWith('.vercel.app')) return true;
     if (hostname.endsWith('.railway.app')) return true;
+
+    // En production : uniquement les origines explicitement listées dans CORS_ORIGIN
+    if (env.NODE_ENV === 'production') return false;
 
     const isPrivateLan =
       hostname === 'localhost' ||

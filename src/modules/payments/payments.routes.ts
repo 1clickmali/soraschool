@@ -10,6 +10,8 @@ import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
 import { renderInvoicePdf, renderPaymentReceiptPdf } from '../pdf/pdf.service'
+import { notifyPaymentReceived } from '../../lib/notifications'
+import { getPlatformBranding } from '../../lib/platform-branding'
 
 export const paymentsRoutes = Router()
 paymentsRoutes.use(authenticate, requireTenantUser)
@@ -211,6 +213,31 @@ paymentsRoutes.post(
       }
       return tx.payment.findUniqueOrThrow({ where: { id: created.id } })
     })
+    // Fire-and-forget parent notification
+    const studentId = payment.studentId
+    if (studentId) {
+      const branding = await getPlatformBranding()
+      const student = await prisma.student.findUnique({ where: { id: studentId } })
+      const institution = await prisma.institution.findUnique({ where: { id: payment.institutionId }, select: { currency: true } })
+      if (student) {
+        const parentLinks = await prisma.studentParent.findMany({
+          where: { studentId: student.id },
+          include: { parent: { select: { phone: true, userId: true } } }
+        })
+        for (const link of parentLinks) {
+          notifyPaymentReceived({
+            institutionId: payment.institutionId,
+            studentName: `${student.firstName} ${student.lastName}`,
+            amount: payment.amount,
+            currency: institution?.currency ?? 'XOF',
+            parentUserId: link.parent.userId ?? undefined,
+            parentPhone: link.parent.phone,
+            appName: branding.appName
+          }).catch(() => {})
+        }
+      }
+    }
+
     res.status(201).json({
       payment,
       pdfs: {

@@ -5,7 +5,7 @@
     "buildCommand": "pnpm prisma:generate && pnpm build"
   },
   "deploy": {
-    "startCommand": "pnpm prisma:push && pnpm prisma:seed && pnpm start",
+    "startCommand": "pnpm prisma:push && (pnpm prisma:seed || echo '[Railway] Seed skipped') && pnpm start",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10

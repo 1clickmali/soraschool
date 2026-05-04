@@ -741,6 +741,7 @@ model Student {
   homeworkCorrections HomeworkCorrection[]
   attendances         StudentAttendance[]
   discipline          DisciplineRecord[]
+  disciplineScore     DisciplineScore?
   invoices            Invoice[]
 
   @@unique([institutionId, matricule])
@@ -828,6 +829,7 @@ model Teacher {
   salaries           TeacherSalary[]
   penalties          TeacherPenalty[]
   discipline         DisciplineRecord[]
+  badges             TeacherBadge[]
 
   @@unique([institutionId, matricule])
   @@unique([institutionId, phone])
@@ -849,10 +851,11 @@ model ScheduleSlot {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  classroom   Classroom   @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  teacher     Teacher?    @relation(fields: [teacherId], references: [id], onDelete: SetNull)
-  subject     Subject?    @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  institution        Institution         @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  classroom          Classroom           @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  teacher            Teacher?            @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  subject            Subject?            @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  attendanceSessions AttendanceSession[]
 
   @@index([institutionId, classroomId, dayOfWeek])
   @@index([teacherId, dayOfWeek])
@@ -1067,19 +1070,25 @@ model CalendarEvent {
 }
 
 model AttendanceSession {
-  id            String   @id @default(cuid())
-  institutionId String
-  classroomId   String
-  teacherId     String?
-  date          DateTime
-  note          String?
-  createdAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  institutionId   String
+  classroomId     String
+  teacherId       String?
+  scheduleSlotId  String?
+  date            DateTime
+  startsAt        String?
+  endsAt          String?
+  note            String?
+  closedAt        DateTime?
+  createdAt       DateTime @default(now())
 
-  classroom Classroom           @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  teacher   Teacher?            @relation(fields: [teacherId], references: [id], onDelete: SetNull)
-  records   StudentAttendance[]
+  classroom    Classroom           @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  teacher      Teacher?            @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  scheduleSlot ScheduleSlot?       @relation(fields: [scheduleSlotId], references: [id], onDelete: SetNull)
+  records      StudentAttendance[]
 
   @@index([institutionId, classroomId, date])
+  @@index([institutionId, scheduleSlotId])
 }
 
 model StudentAttendance {
@@ -1093,8 +1102,9 @@ model StudentAttendance {
   attachmentUrl String?
   createdAt     DateTime         @default(now())
 
-  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  session       AttendanceSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student       Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  justification AbsenceJustification?
 
   @@unique([sessionId, studentId])
   @@index([institutionId, studentId])
@@ -1423,15 +1433,19 @@ model Notification {
   institutionId String
   userId        String?
   level         NotificationLevel @default(INFO)
+  channel       String            @default("IN_APP")
   title         String
   body          String?
+  data          Json?
   readAt        DateTime?
+  sentAt        DateTime?
   createdAt     DateTime          @default(now())
 
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   user        User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([institutionId, userId])
+  @@index([institutionId, createdAt])
 }
 
 model AuditLog {
@@ -1470,4 +1484,77 @@ model CountryHolidayTemplate {
   updatedAt   DateTime         @updatedAt
 
   @@index([countryCode])
+}
+
+// ─── TEACHER BADGING ──────────────────────────────────────────────────────────
+
+model TeacherBadge {
+  id              String    @id @default(cuid())
+  institutionId   String
+  teacherId       String
+  date            DateTime
+  checkInAt       DateTime?
+  checkOutAt      DateTime?
+  expectedCheckIn String?
+  lateMinutes     Int       @default(0)
+  note            String?
+  createdAt       DateTime  @default(now())
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, date])
+  @@index([institutionId, teacherId])
+  @@index([institutionId, date])
+}
+
+// ─── DISCIPLINE SCORING ───────────────────────────────────────────────────────
+
+model DisciplineScore {
+  id            String   @id @default(cuid())
+  institutionId String
+  studentId     String   @unique
+  score         Int      @default(100)
+  updatedAt     DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId])
+}
+
+model DisciplineRule {
+  id            String   @id @default(cuid())
+  institutionId String
+  kind          String
+  title         String
+  points        Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([institutionId])
+}
+
+// ─── ABSENCE JUSTIFICATION ────────────────────────────────────────────────────
+
+model AbsenceJustification {
+  id              String           @id @default(cuid())
+  institutionId   String
+  attendanceId    String           @unique
+  submittedBy     String?
+  reason          String
+  attachmentUrl   String?
+  status          JustifStatus     @default(PENDING)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewNote      String?
+  createdAt       DateTime         @default(now())
+
+  attendance StudentAttendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId])
+}
+
+enum JustifStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

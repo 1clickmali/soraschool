@@ -7,6 +7,8 @@ import { forbidden, notFound } from '../../lib/errors'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
+import { notifyDisciplineAlert } from '../../lib/notifications'
+import { getPlatformBranding } from '../../lib/platform-branding'
 
 export const disciplineRoutes = Router()
 disciplineRoutes.use(authenticate, requireTenantUser)
@@ -66,19 +68,89 @@ disciplineRoutes.post(
       teacherId = teacher.id
     }
 
-    const record = await prisma.disciplineRecord.create({
-      data: {
-        institutionId: req.institutionId!,
-        teacherId,
-        studentId: req.body.studentId,
-        kind: req.body.kind ?? mapDisciplineKind(req.body.type),
-        title: req.body.title ?? req.body.type ?? 'Signalement',
-        description: req.body.description ?? req.body.sanctions,
-        points: req.body.points,
-        parentNotified: req.body.parentNotified
+    const institutionId = req.institutionId!
+    const points = req.body.points ?? 0
+
+    const [record, student] = await prisma.$transaction(async (tx) => {
+      const rec = await tx.disciplineRecord.create({
+        data: {
+          institutionId,
+          teacherId,
+          studentId: req.body.studentId,
+          kind: req.body.kind ?? mapDisciplineKind(req.body.type),
+          title: req.body.title ?? req.body.type ?? 'Signalement',
+          description: req.body.description ?? req.body.sanctions,
+          points,
+          parentNotified: req.body.parentNotified
+        }
+      })
+
+      if (points !== 0) {
+        await tx.disciplineScore.upsert({
+          where: { studentId: req.body.studentId },
+          create: { institutionId, studentId: req.body.studentId, score: Math.max(0, Math.min(100, 100 + points)) },
+          update: { score: { increment: points } }
+        })
+        await tx.disciplineScore.updateMany({
+          where: { institutionId, studentId: req.body.studentId, score: { gt: 100 } },
+          data: { score: 100 }
+        })
+        await tx.disciplineScore.updateMany({
+          where: { institutionId, studentId: req.body.studentId, score: { lt: 0 } },
+          data: { score: 0 }
+        })
       }
+
+      const stu = await tx.student.findUnique({ where: { id: req.body.studentId } })
+      return [rec, stu]
     })
+
+    if (points < 0 && student) {
+      const scoreRow = await prisma.disciplineScore.findUnique({ where: { studentId: student.id } })
+      const score = scoreRow?.score ?? 100
+      const alertThresholds = [50, 30, 10]
+      const wasAbove = score - points
+      const triggered = alertThresholds.find((t) => wasAbove > t && score <= t)
+      if (triggered) {
+        const branding = await getPlatformBranding()
+        const parentLinks = await prisma.studentParent.findMany({
+          where: { studentId: student.id },
+          include: { parent: { select: { phone: true, userId: true } } }
+        })
+        for (const link of parentLinks) {
+          await notifyDisciplineAlert({
+            institutionId: institutionId,
+            studentName: `${student.firstName} ${student.lastName}`,
+            score,
+            parentUserId: link.parent.userId ?? undefined,
+            parentPhone: link.parent.phone,
+            appName: branding.appName
+          })
+        }
+      }
+    }
+
     res.status(201).json({ record })
+  })
+)
+
+disciplineRoutes.get(
+  '/scores',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const scores = await prisma.disciplineScore.findMany({
+      where: { institutionId: req.institutionId! },
+      include: {
+        student: {
+          select: {
+            id: true, firstName: true, lastName: true, matricule: true,
+            classroom: { select: { name: true } }
+          }
+        }
+      },
+      orderBy: { score: 'asc' }
+    })
+    res.json({ scores })
   })
 )
 
