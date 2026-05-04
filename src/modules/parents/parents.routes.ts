@@ -119,7 +119,10 @@ parentsRoutes.get(
                   orderBy: { createdAt: 'desc' }
                 },
                 attendances: {
-                  include: { session: { include: { classroom: true } } },
+                  include: {
+                    session: { include: { classroom: true } },
+                    justification: { select: { id: true, status: true, reason: true } }
+                  },
                   orderBy: { createdAt: 'desc' },
                   take: 30
                 },

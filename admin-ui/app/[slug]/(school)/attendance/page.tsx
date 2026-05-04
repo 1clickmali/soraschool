@@ -16,6 +16,9 @@ import {
   BookOpen,
   ChevronLeft,
   CalendarX,
+  ClipboardCheck,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import {
   downloadProtectedFile,
@@ -24,6 +27,7 @@ import {
   type Teacher,
   type AttendanceSlot,
   type TeacherAttendanceRecord,
+  type AbsenceJustification,
 } from "@/lib/school-api";
 import { cn } from "@/lib/utils";
 
@@ -283,6 +287,30 @@ export default function AttendancePage() {
     );
     if (error) setSaveError(error);
   };
+
+  // Justifications
+  const [justifications, setJustifications] = useState<AbsenceJustification[]>([]);
+  const [justifLoading, setJustifLoading] = useState(true);
+  const [justifStatusFilter, setJustifStatusFilter] = useState<"" | "PENDING" | "APPROVED" | "REJECTED">("");
+  const [reviewNote, setReviewNote] = useState<Record<string, string>>({});
+
+  const loadJustifications = useCallback(async () => {
+    setJustifLoading(true);
+    const { data } = await schoolApi.justifications(justifStatusFilter || undefined);
+    setJustifications(data?.justifications || []);
+    setJustifLoading(false);
+  }, [justifStatusFilter]);
+
+  useEffect(() => { loadJustifications(); }, [loadJustifications]);
+
+  const handleReview = async (id: string, status: "APPROVED" | "REJECTED") => {
+    const { error } = await schoolApi.reviewJustification(id, { status, reviewNote: reviewNote[id] });
+    if (!error) {
+      setJustifications((prev) => prev.map((j) => j.id === id ? { ...j, status, reviewNote: reviewNote[id] } : j));
+    }
+  };
+
+  const pendingCount = justifications.filter((j) => j.status === "PENDING").length;
 
   const presentCount = entries.filter((e) => e.status === "PRESENT").length;
   const absentCount = entries.filter((e) => e.status === "ABSENT").length;
@@ -696,6 +724,125 @@ export default function AttendancePage() {
               <Download className="w-4 h-4" />
               Export CSV
             </button>
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── Justifications d'absence parents ─────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden mt-6"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck className="w-4 h-4 text-blue-400" />
+            <div>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                Justifications d&apos;absences parents
+                {pendingCount > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-orange-500/15 text-orange-300 border border-orange-500/25">
+                    {pendingCount} en attente
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">Approuver ou refuser les justifications soumises par les parents</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={justifStatusFilter}
+              onChange={(e) => setJustifStatusFilter(e.target.value as typeof justifStatusFilter)}
+              className="bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-white [&>option]:bg-soraDark"
+            >
+              <option value="">Toutes</option>
+              <option value="PENDING">En attente</option>
+              <option value="APPROVED">Acceptées</option>
+              <option value="REJECTED">Refusées</option>
+            </select>
+            <button onClick={loadJustifications} className="p-2 rounded-xl border border-white/10 bg-white/[0.04] text-gray-400 hover:text-white transition-all">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {justifLoading ? (
+          <div className="p-6 space-y-3">
+            {[...Array(3)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-white/[0.05] animate-pulse" />)}
+          </div>
+        ) : justifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 text-gray-500">
+            <ClipboardCheck className="w-10 h-10 mb-3 opacity-20" />
+            <p className="text-sm">Aucune justification {justifStatusFilter ? `(${justifStatusFilter === "PENDING" ? "en attente" : justifStatusFilter === "APPROVED" ? "acceptée" : "refusée"})` : ""}</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/[0.04]">
+            {justifications.map((j) => {
+              const student = j.attendance?.student;
+              const session = j.attendance?.session;
+              const isPending = j.status === "PENDING";
+              return (
+                <div key={j.id} className="px-5 py-4 space-y-3 hover:bg-white/[0.02] transition-colors">
+                  <div className="flex flex-wrap items-start gap-3 justify-between">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                        {student ? (student.firstName[0] + (student.lastName[0] || "")).toUpperCase() : "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-white">
+                          {student ? `${student.firstName} ${student.lastName}` : "Élève inconnu"}
+                          {student?.matricule && <span className="ml-2 text-xs text-gray-600 font-mono">#{student.matricule}</span>}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {session?.classroom?.name && <span>{session.classroom.name} · </span>}
+                          {session?.date && new Date(session.date).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" })}
+                          {j.attendance?.status && <span className="ml-1">· {j.attendance.status === "ABSENT" ? "Absence" : "Retard"}</span>}
+                        </p>
+                        <p className="text-sm text-gray-300 mt-1.5">{j.reason}</p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border",
+                      j.status === "PENDING"  && "bg-amber-500/10 text-amber-300 border-amber-500/20",
+                      j.status === "APPROVED" && "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+                      j.status === "REJECTED" && "bg-red-500/10 text-red-300 border-red-500/20",
+                    )}>
+                      {j.status === "PENDING" ? "En attente" : j.status === "APPROVED" ? "Acceptée" : "Refusée"}
+                    </span>
+                  </div>
+
+                  {isPending && (
+                    <div className="flex flex-wrap gap-2 items-center pl-12">
+                      <input
+                        type="text"
+                        placeholder="Note de révision (optionnel)"
+                        value={reviewNote[j.id] || ""}
+                        onChange={(e) => setReviewNote((prev) => ({ ...prev, [j.id]: e.target.value }))}
+                        className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/40 transition-all"
+                      />
+                      <button
+                        onClick={() => handleReview(j.id, "APPROVED")}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-sm font-semibold hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                        Accepter
+                      </button>
+                      <button
+                        onClick={() => handleReview(j.id, "REJECTED")}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 text-sm font-semibold hover:bg-red-500/20 transition-colors"
+                      >
+                        <ThumbsDown className="w-3.5 h-3.5" />
+                        Refuser
+                      </button>
+                    </div>
+                  )}
+                  {!isPending && j.reviewNote && (
+                    <p className="text-xs text-gray-500 pl-12">Note : {j.reviewNote}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </motion.div>

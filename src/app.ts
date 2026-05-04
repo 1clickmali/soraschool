@@ -64,44 +64,35 @@ export function createApp() {
   )
 
   app.get('/', async (_req, res) => {
-    const branding = await getPlatformBranding()
-    res.json({
-      ok: true,
-      name: `${branding.appName} API`,
-      message: `Backend ${branding.appName} opérationnel. Utilisez /docs/ pour Swagger ou /health pour vérifier le serveur.`,
-      links: {
-        health: '/health',
-        swagger: '/docs/',
-        auth: '/api/auth',
-        superAdmin: '/api/super-admin',
-        centralAdmin: '/api/central-admin',
-        institutions: '/api/institutions',
-        students: '/api/students',
-        teachers: '/api/teachers',
-        schedule: '/api/schedule',
-        calendar: '/api/calendar',
-        homeworks: '/api/homeworks',
-        shop: '/api/shop',
-        documents: '/api/documents',
-        messages: '/api/messages'
-      }
-    })
+    try {
+      const branding = await getPlatformBranding()
+      res.json({
+        ok: true,
+        name: `${branding.appName} API`,
+        message: `Backend ${branding.appName} opérationnel. Utilisez /docs/ pour Swagger ou /health pour vérifier le serveur.`,
+        links: { health: '/health', auth: '/api/auth' }
+      })
+    } catch {
+      res.json({ ok: true })
+    }
   })
 
   app.get('/api', async (_req, res) => {
-    const branding = await getPlatformBranding()
-    res.json({
-      ok: true,
-      name: `${branding.appName} API`,
-      version: '0.1.0',
-      docs: '/docs/',
-      health: '/health'
-    })
+    try {
+      const branding = await getPlatformBranding()
+      res.json({ ok: true, name: `${branding.appName} API`, version: '0.1.0', health: '/health' })
+    } catch {
+      res.json({ ok: true, version: '0.1.0', health: '/health' })
+    }
   })
 
   app.get('/health', async (_req, res) => {
-    const branding = await getPlatformBranding()
-    res.json({ ok: true, name: `${branding.appName} API`, uptime: process.uptime() })
+    try {
+      const branding = await getPlatformBranding()
+      res.json({ ok: true, name: `${branding.appName} API`, uptime: process.uptime() })
+    } catch {
+      res.json({ ok: true, uptime: process.uptime() })
+    }
   })
 
   app.use('/api/platform', platformRoutes)

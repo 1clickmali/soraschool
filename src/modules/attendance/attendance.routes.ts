@@ -1,14 +1,15 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
-import { AttendanceStatus, UserRole } from '@prisma/client'
+import { AttendanceStatus, JustifStatus, UserRole } from '@prisma/client'
 import { prisma } from '../../config/prisma'
 import { asyncHandler } from '../../lib/async'
-import { badRequest, forbidden } from '../../lib/errors'
+import { badRequest, forbidden, notFound } from '../../lib/errors'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
 import { notifyAbsence } from '../../lib/notifications'
 import { getPlatformBranding } from '../../lib/platform-branding'
+import { getParentScope } from '../../lib/parent-access'
 
 export const attendanceRoutes = Router()
 attendanceRoutes.use(authenticate, requireTenantUser)
@@ -464,5 +465,158 @@ attendanceRoutes.post(
       })
     })
     res.status(201).json({ attendance })
+  })
+)
+
+// ── Absence Justifications ─────────────────────────────────────────────────
+
+attendanceRoutes.post(
+  '/justifications',
+  requireRoles(UserRole.PARENT),
+  validate(
+    z.object({
+      body: z.object({
+        attendanceId: z.string(),
+        reason: z.string().min(3),
+        attachmentUrl: z.string().url().optional()
+      })
+    })
+  ),
+  asyncHandler(async (req, res) => {
+    const scope = await getParentScope(req.institutionId!, req.user!.id)
+    if (!scope.parent) throw forbidden('Profil parent introuvable')
+
+    const record = await prisma.studentAttendance.findFirst({
+      where: {
+        id: req.body.attendanceId,
+        institutionId: req.institutionId!,
+        studentId: { in: scope.studentIds }
+      }
+    })
+    if (!record) throw notFound('Absence introuvable ou non liée à vos enfants')
+    if (record.status !== AttendanceStatus.ABSENT && record.status !== AttendanceStatus.LATE) {
+      throw badRequest("Seules les absences ou retards peuvent être justifiés")
+    }
+
+    const existing = await prisma.absenceJustification.findUnique({
+      where: { attendanceId: req.body.attendanceId }
+    })
+    if (existing) throw badRequest('Une justification existe déjà pour cette absence')
+
+    const justification = await prisma.absenceJustification.create({
+      data: {
+        institutionId: req.institutionId!,
+        attendanceId: req.body.attendanceId,
+        submittedBy: req.user!.id,
+        reason: req.body.reason,
+        attachmentUrl: req.body.attachmentUrl,
+        status: JustifStatus.PENDING
+      },
+      include: {
+        attendance: {
+          include: {
+            student: { select: { firstName: true, lastName: true, matricule: true } },
+            session: { select: { date: true, classroom: { select: { name: true } } } }
+          }
+        }
+      }
+    })
+    res.status(201).json({ justification })
+  })
+)
+
+attendanceRoutes.get(
+  '/justifications',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION, UserRole.SECRETARIAT, UserRole.PARENT),
+  asyncHandler(async (req, res) => {
+    const statusFilter = req.query.status ? (String(req.query.status) as JustifStatus) : undefined
+
+    if (req.user!.role === UserRole.PARENT) {
+      const scope = await getParentScope(req.institutionId!, req.user!.id)
+      if (!scope.parent) throw forbidden('Profil parent introuvable')
+      const justifications = await prisma.absenceJustification.findMany({
+        where: {
+          institutionId: req.institutionId!,
+          status: statusFilter,
+          attendance: { studentId: { in: scope.studentIds } }
+        },
+        include: {
+          attendance: {
+            include: {
+              student: { select: { firstName: true, lastName: true, matricule: true } },
+              session: { select: { date: true, classroom: { select: { name: true } } } }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+      return res.json({ justifications })
+    }
+
+    const justifications = await prisma.absenceJustification.findMany({
+      where: {
+        institutionId: req.institutionId!,
+        status: statusFilter
+      },
+      include: {
+        attendance: {
+          include: {
+            student: { select: { firstName: true, lastName: true, matricule: true } },
+            session: { select: { date: true, classroom: { select: { name: true } } } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+    res.json({ justifications })
+  })
+)
+
+attendanceRoutes.patch(
+  '/justifications/:id',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION, UserRole.SECRETARIAT),
+  validate(
+    z.object({
+      params: z.object({ id: z.string() }),
+      body: z.object({
+        status: z.enum([JustifStatus.APPROVED, JustifStatus.REJECTED]),
+        reviewNote: z.string().optional()
+      })
+    })
+  ),
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.absenceJustification.findFirst({
+      where: { id: req.params.id, institutionId: req.institutionId! }
+    })
+    if (!existing) throw notFound('Justification introuvable')
+    if (existing.status !== JustifStatus.PENDING) throw badRequest('Justification déjà traitée')
+
+    const justification = await prisma.$transaction(async (tx) => {
+      const updated = await tx.absenceJustification.update({
+        where: { id: req.params.id },
+        data: {
+          status: req.body.status,
+          reviewedBy: req.user!.id,
+          reviewedAt: new Date(),
+          reviewNote: req.body.reviewNote
+        },
+        include: {
+          attendance: {
+            include: {
+              student: { select: { firstName: true, lastName: true, matricule: true } },
+              session: { select: { date: true, classroom: { select: { name: true } } } }
+            }
+          }
+        }
+      })
+      if (req.body.status === JustifStatus.APPROVED) {
+        await tx.studentAttendance.update({
+          where: { id: existing.attendanceId },
+          data: { status: AttendanceStatus.EXCUSED }
+        })
+      }
+      return updated
+    })
+    res.json({ justification })
   })
 )

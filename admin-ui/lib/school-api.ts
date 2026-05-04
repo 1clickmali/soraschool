@@ -566,6 +566,19 @@ export const schoolApi = {
     ),
   markNotificationsRead: (ids?: string[]) =>
     post<{ ok: boolean }>("/api/notifications/mark-read", ids ? { ids } : {}),
+
+  // Justifications d'absence
+  createJustification: (data: { attendanceId: string; reason: string; attachmentUrl?: string }) =>
+    post<{ justification: AbsenceJustification }>("/api/attendance/justifications", data),
+  justifications: (status?: "PENDING" | "APPROVED" | "REJECTED") =>
+    get<{ justifications: AbsenceJustification[] }>(
+      `/api/attendance/justifications${status ? `?status=${status}` : ""}`
+    ),
+  reviewJustification: (id: string, data: { status: "APPROVED" | "REJECTED"; reviewNote?: string }) =>
+    schoolApiRequest<{ justification: AbsenceJustification }>(`/api/attendance/justifications/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
 };
 
 // Types
@@ -1004,6 +1017,7 @@ export interface AttendanceRecord {
   reason?: string;
   classroomId?: string;
   session?: { id: string; date: string; classroom?: Classroom };
+  justification?: { id: string; status: "PENDING" | "APPROVED" | "REJECTED"; reason: string };
 }
 
 export interface TeacherAttendanceRecord {
@@ -1284,8 +1298,8 @@ export interface AttendanceSession {
 
 export interface AttendanceSlot extends ScheduleSlot {
   classroom: Classroom;
-  teacher?: Teacher | null;
-  subject?: Subject | null;
+  teacher?: Teacher;
+  subject?: Subject;
   attendanceSessions: Array<{
     id: string;
     records: Array<{ studentId: string; status: string }>;
@@ -1556,4 +1570,31 @@ export interface Sale {
   receiptUrl?: string;
   createdAt: string;
   items?: Array<{ id: string; productId: string; quantity: number; unitPrice: number; total: number; product?: Product }>;
+}
+
+export interface AbsenceJustification {
+  id: string;
+  institutionId: string;
+  attendanceId: string;
+  submittedBy?: string;
+  reason: string;
+  attachmentUrl?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
+  attendance?: {
+    id: string;
+    status: string;
+    student?: {
+      firstName: string;
+      lastName: string;
+      matricule?: string;
+    };
+    session?: {
+      date: string;
+      classroom?: { name: string };
+    };
+  };
 }

@@ -8,6 +8,7 @@ import {
   BookOpen,
   CheckCircle2,
   ChevronRight,
+  Clock,
   CreditCard,
   Download,
   FileText,
@@ -27,6 +28,7 @@ import {
 import {
   downloadProtectedFile,
   schoolApi,
+  type AttendanceRecord,
   type CreateParentReportInput,
   type Grade,
   type ParentDashboardData,
@@ -150,6 +152,8 @@ export default function ParentDashboardPage() {
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
   const [sending, setSending] = useState(false);
   const [reportForm, setReportForm] = useState<CreateParentReportInput>({ type: "PLAINTE", childId: "", message: "" });
+  const [justifyModal, setJustifyModal] = useState<{ attendanceId: string; date: string } | null>(null);
+  const [justifyReason, setJustifyReason] = useState("");
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -222,6 +226,21 @@ export default function ParentDashboardPage() {
     await load();
   };
 
+  const submitJustification = async () => {
+    if (!justifyModal || !justifyReason.trim()) return;
+    setSending(true);
+    const { error } = await schoolApi.createJustification({
+      attendanceId: justifyModal.attendanceId,
+      reason: justifyReason.trim(),
+    });
+    setSending(false);
+    if (error) { showToast(error, false); return; }
+    setJustifyModal(null);
+    setJustifyReason("");
+    showToast("Justification envoyée, en attente de validation.");
+    await load();
+  };
+
   const greeting = getGreeting();
 
   /* ────────────────────────────── LOADING ───────────────── */
@@ -260,6 +279,66 @@ export default function ParentDashboardPage() {
             <span className="flex-1">{toast.msg}</span>
             <button onClick={() => setToast(null)}><X className="h-3.5 w-3.5" /></button>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal justification absence ──────────────────────── */}
+      <AnimatePresence>
+        {justifyModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+              onClick={() => setJustifyModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full max-w-sm bg-[#0d1528] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">Justifier une absence</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">{new Date(justifyModal.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}</p>
+                  </div>
+                  <button onClick={() => setJustifyModal(null)} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 font-medium mb-1.5 uppercase tracking-wide">Motif de justification</label>
+                    <textarea
+                      rows={4}
+                      value={justifyReason}
+                      onChange={(e) => setJustifyReason(e.target.value)}
+                      placeholder="Maladie, rendez-vous médical, événement familial…"
+                      className="w-full px-3 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50 transition-all resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setJustifyModal(null)}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.09] text-gray-300 text-sm font-medium transition-colors"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={submitJustification}
+                      disabled={!justifyReason.trim() || sending}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-all"
+                    >
+                      {sending ? "Envoi…" : "Envoyer"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
         )}
       </AnimatePresence>
 
@@ -391,6 +470,7 @@ export default function ParentDashboardPage() {
                         onOpenDocument={openDocument}
                         onOpenReportCard={openReportCard}
                         onOpenReceipt={openReceipt}
+                        onJustify={(a) => { setJustifyModal({ attendanceId: a.id, date: a.date }); setJustifyReason(""); }}
                       />
                     </motion.div>
                   ))}
@@ -435,7 +515,7 @@ function HeroStat({ icon: Icon, label, value, color, iconBg }: {
 /* ═══════════════════════════════════════════════════════════
    CHILD CARD
 ════════════════════════════════════════════════════════════ */
-function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, onOpenReportCard, onOpenReceipt }: {
+function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, onOpenReportCard, onOpenReceipt, onJustify }: {
   child: Student;
   docs: SchoolDocument[];
   showDetail: boolean;
@@ -443,6 +523,7 @@ function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, 
   onOpenDocument: (d: SchoolDocument) => void;
   onOpenReportCard: (s: Student, g: Grade) => void;
   onOpenReceipt: (id: string, num?: string) => void;
+  onJustify: (a: AttendanceRecord) => void;
 }) {
   const finance = studentFinance(child);
   const avg     = avgGrade(child);
@@ -603,15 +684,39 @@ function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, 
               </div>
             ) : (
               <div className="space-y-2">
-                {absences.slice(0, 6).map((a) => (
-                  <div key={a.id} className="flex items-center justify-between rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <div className={cn("h-2 w-2 rounded-full", a.status === "LATE" ? "bg-amber-400" : "bg-red-400")} />
-                      <span className="text-sm text-gray-300">{a.status === "LATE" ? "Retard" : "Absence"}</span>
+                {absences.slice(0, 6).map((a) => {
+                  const justif = a.justification;
+                  const canJustify = !justif && (a.status === "ABSENT" || a.status === "LATE");
+                  return (
+                    <div key={a.id} className="flex items-center justify-between rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2 gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className={cn("h-2 w-2 rounded-full flex-shrink-0", a.status === "LATE" ? "bg-amber-400" : "bg-red-400")} />
+                        <span className="text-sm text-gray-300">{a.status === "LATE" ? "Retard" : "Absence"}</span>
+                        <span className="text-xs text-gray-600">{formatDate(a.date)}</span>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {justif ? (
+                          <span className={cn(
+                            "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                            justif.status === "PENDING"  && "bg-amber-500/10 text-amber-300 border-amber-500/20",
+                            justif.status === "APPROVED" && "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+                            justif.status === "REJECTED" && "bg-red-500/10 text-red-300 border-red-500/20",
+                          )}>
+                            {justif.status === "PENDING" ? "En attente" : justif.status === "APPROVED" ? "Acceptée" : "Refusée"}
+                          </span>
+                        ) : canJustify ? (
+                          <button
+                            onClick={() => onJustify(a)}
+                            className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
+                          >
+                            <Clock className="h-3 w-3" />
+                            Justifier
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-600">{formatDate(a.date)}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </InfoPanel>
