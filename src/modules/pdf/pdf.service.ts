@@ -886,40 +886,53 @@ function certificateTitle(kind: string) {
   return 'CERTIFICAT DE SCOLARITÉ'
 }
 
-// ─── Card helpers (HTML-template–faithful layout) ────────────────────────────
+// ─── Card helpers ─────────────────────────────────────────────────────────────
+//
+// Layout budget (CARD_HEIGHT = 153.07pt):
+//   0-38   : header (logo + institution name + year)
+//   38-40  : accent separator
+//   40-50  : card-type banner (primary bg, white text)
+//   50-116 : content row  — photo left (w=60,h=66) | info rows right (6×11pt)
+//   116-140: bottom strip — QR left (22×22) | signature right
+//   140-153: footer (primary bg, 13pt)
 
 function drawCardHeader(
   doc: PDFKit.PDFDocument,
   params: { institutionName: string; acronym: string; year?: string | null; logo?: ImageSource; primaryColor: string; accentColor: string }
 ) {
   const { primaryColor: primary, accentColor: accent } = params
-  // Navy left block + accent right block, curved bottom-right corners
-  doc.rect(0, 0, 82, 40).fill(primary)
-  doc.rect(66, 0, 50, 40).fill(accent)
-  doc.rect(82, 0, CARD_WIDTH - 82, 40).fill('#FFFFFF')
 
-  // Circular logo
-  const logoX = 10, logoY = 6, logoD = 28
+  // Header background: primary left band + white right
+  doc.rect(0, 0, 44, 38).fill(primary)
+  doc.rect(44, 0, CARD_WIDTH - 44, 38).fill('#FFFFFF')
+  // Accent top border
+  doc.rect(0, 0, CARD_WIDTH, 3).fill(accent)
+
+  // Circular logo inside left band
+  const cx = 22, cy = 21, r = 16
   doc.save()
-  doc.circle(logoX + logoD / 2, logoY + logoD / 2, logoD / 2).clip()
+  doc.circle(cx, cy, r).clip()
   try {
-    if (params.logo && (Buffer.isBuffer(params.logo) || fs.existsSync(params.logo))) {
-      doc.image(params.logo, logoX, logoY, { fit: [logoD, logoD], align: 'center', valign: 'center' })
+    if (params.logo && (Buffer.isBuffer(params.logo) || fs.existsSync(params.logo as string))) {
+      doc.image(params.logo, cx - r, cy - r, { width: r * 2, height: r * 2, align: 'center', valign: 'center' })
     } else {
-      doc.rect(logoX, logoY, logoD, logoD).fill(primary)
-      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9).text(params.acronym.slice(0, 3), logoX, logoY + logoD / 2 - 5, { width: logoD, align: 'center' })
+      doc.rect(cx - r, cy - r, r * 2, r * 2).fill(accent)
+      doc.fillColor(primary).font('Helvetica-Bold').fontSize(8).text(params.acronym.slice(0, 3), cx - r, cy - 5, { width: r * 2, align: 'center' })
     }
   } catch {
-    doc.rect(logoX, logoY, logoD, logoD).fill(primary)
-    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9).text(params.acronym.slice(0, 3), logoX, logoY + logoD / 2 - 5, { width: logoD, align: 'center' })
+    doc.rect(cx - r, cy - r, r * 2, r * 2).fill(accent)
+    doc.fillColor(primary).font('Helvetica-Bold').fontSize(8).text(params.acronym.slice(0, 3), cx - r, cy - 5, { width: r * 2, align: 'center' })
   }
   doc.restore()
 
-  // School name & year
-  doc.fillColor(primary).font('Helvetica-Bold').fontSize(7.5)
-  safeText(doc, params.institutionName.toUpperCase(), 97, 8, 138, { height: 16, lineGap: 0 })
+  // Institution name + year (right of logo)
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(7.8)
+  safeText(doc, params.institutionName.toUpperCase(), 50, 7, CARD_WIDTH - 58, { height: 18, lineGap: 0 })
   doc.fillColor(accent).font('Helvetica').fontSize(6.5)
-  safeText(doc, `Année scolaire : ${params.year ?? 'en cours'}`, 97, 26, 138, { height: 9 })
+  safeText(doc, `Annee scolaire : ${params.year ?? 'en cours'}`, 50, 27, CARD_WIDTH - 58, { height: 9 })
+
+  // Bottom accent line
+  doc.rect(0, 37, CARD_WIDTH, 1.5).fill(accent)
 }
 
 function drawCardInfoRow(
@@ -929,12 +942,12 @@ function drawCardInfoRow(
   primary: string,
   last = false
 ) {
-  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8)
-  safeText(doc, label.toUpperCase(), x, y, width * 0.42, { height: 7 })
-  doc.fillColor(TEXT).font('Helvetica-Bold').fontSize(6.5)
-  safeText(doc, value, x + width * 0.44, y - 0.5, width * 0.56, { height: 8 })
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.5)
+  safeText(doc, label.toUpperCase(), x, y, width * 0.40, { height: 7 })
+  doc.fillColor(TEXT).font('Helvetica-Bold').fontSize(6.3)
+  safeText(doc, value, x + width * 0.42, y - 0.5, width * 0.58, { height: 8 })
   if (!last) {
-    doc.moveTo(x, y + 10).lineTo(x + width, y + 10).strokeColor('#E5EBF3').lineWidth(0.5).stroke()
+    doc.moveTo(x, y + 9.5).lineTo(x + width, y + 9.5).strokeColor('#E5EBF3').lineWidth(0.4).stroke()
   }
 }
 
@@ -952,42 +965,47 @@ function drawStudentCardFront(doc: PDFKit.PDFDocument, params: {
   doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
   drawCardHeader(doc, { institutionName: params.institutionName, acronym: params.acronym, year: params.year, logo: params.logo, primaryColor: primary, accentColor: accent })
 
-  // Photo — left side below header
-  drawPhoto(doc, 8, 44, 64, 76, params.photo, `${params.firstName} ${params.lastName}`)
+  // Card-type banner (y=38.5 to y=50)
+  doc.rect(0, 38.5, CARD_WIDTH, 11.5).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7.5)
+  safeText(doc, params.cardLabel.toUpperCase(), 8, 41.5, CARD_WIDTH - 16, { height: 9 })
 
-  // "CARTE SCOLAIRE" navy banner — right of photo
-  doc.rect(78, 42, CARD_WIDTH - 78, 16).fill(primary)
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7).text(params.cardLabel.toUpperCase(), 82, 47, { width: CARD_WIDTH - 86, height: 9 })
+  // Photo — left (x=6, y=52, w=60, h=60)
+  drawPhoto(doc, 6, 52, 60, 60, params.photo, `${params.firstName} ${params.lastName}`)
 
-  // Info rows
-  const infoX = 80, infoW = CARD_WIDTH - infoX - 8
+  // Info rows — right of photo (6 rows × 10.5pt, starts at y=54)
+  const infoX = 72, infoW = CARD_WIDTH - infoX - 6
   const rows = [
     { label: 'Nom', value: params.lastName },
-    { label: 'Prénom', value: params.firstName },
+    { label: 'Prenom', value: params.firstName },
     { label: 'Matricule', value: params.matricule },
     { label: 'Classe', value: params.className },
-    { label: 'Né(e) le', value: params.birthDate ?? '-' },
+    { label: 'Ne(e) le', value: params.birthDate ?? '-' },
     { label: 'Statut', value: params.status },
   ]
   rows.forEach((row, i) => {
-    drawCardInfoRow(doc, row.label, row.value, infoX, 62 + i * 12, infoW, primary, i === rows.length - 1)
+    drawCardInfoRow(doc, row.label, row.value, infoX, 54 + i * 10.5, infoW, primary, i === rows.length - 1)
   })
 
-  // Decorative curved line above QR zone
-  doc.moveTo(66, 128).bezierCurveTo(100, 122, 140, 124, CARD_WIDTH, 122).strokeColor('#E5EBF3').lineWidth(1).stroke()
+  // Separator line between content and bottom strip
+  doc.moveTo(6, 116).lineTo(CARD_WIDTH - 6, 116).strokeColor('#E5EBF3').lineWidth(0.6).stroke()
 
-  // QR code — bottom left
-  doc.roundedRect(8, 124, 28, 28, 4).fillAndStroke('#FFFFFF', '#D7E6FF')
-  doc.image(params.qr, 10, 126, { width: 24, height: 24 })
-  doc.fillColor(primary).font('Helvetica-Bold').fontSize(4.5).text('QR', 8, 153, { width: 28, align: 'center' })
+  // Footer bar first (y=141 to 153) so QR sits above it
+  doc.rect(0, 141, CARD_WIDTH, 12).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5)
+  safeText(doc, 'SORASCHOOL - GESTION SCOLAIRE INTELLIGENTE', 0, 145.5, CARD_WIDTH, { align: 'center', height: 6 })
 
-  // Signature box — bottom right
-  doc.roundedRect(CARD_WIDTH - 70, 124, 62, 22, 4).strokeColor('#C7CED8').lineWidth(1).stroke()
-  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(6).text('Signature / Cachet', CARD_WIDTH - 70, 130, { width: 62, align: 'center' })
+  // QR code — bottom left (x=6, y=118, 21×21 → ends y=139)
+  doc.roundedRect(6, 118, 21, 21, 3).fillAndStroke('#F0F5FF', accent)
+  doc.image(params.qr, 8, 120, { width: 17, height: 17 })
+  // "QR" label on the footer bar
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(4.5)
+  safeText(doc, 'QR', 6, 142.5, 21, { align: 'center', height: 5 })
 
-  // Bottom navy footer
-  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
-  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+  // Signature box — bottom right (y=118, h=20 → ends y=138)
+  doc.roundedRect(CARD_WIDTH - 78, 118, 70, 20, 3).strokeColor(accent).lineWidth(0.8).stroke()
+  doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(5.5)
+  safeText(doc, 'Signature / Cachet', CARD_WIDTH - 78, 126, 70, { align: 'center', height: 8 })
 }
 
 function drawStudentCardBack(doc: PDFKit.PDFDocument, params: {
@@ -1003,47 +1021,59 @@ function drawStudentCardBack(doc: PDFKit.PDFDocument, params: {
 
   doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
 
-  // Header
-  doc.rect(0, 0, CARD_WIDTH, 24).fill(primary)
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(6.8)
-  safeText(doc, '🏫  INFORMATIONS ÉTABLISSEMENT', 14, 8, CARD_WIDTH - 28, { height: 9 })
+  // Header bar (0-26)
+  doc.rect(0, 0, CARD_WIDTH, 26).fill(primary)
+  doc.rect(0, 0, CARD_WIDTH, 3).fill(accent)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7)
+  safeText(doc, 'INFORMATIONS ETABLISSEMENT', 10, 10, CARD_WIDTH - 20, { height: 10 })
 
-  // School name
+  // Institution name (y=28-40)
   doc.fillColor(primary).font('Helvetica-Bold').fontSize(7.5)
-  safeText(doc, params.institutionName.toUpperCase(), 14, 28, CARD_WIDTH - 28, { height: 12 })
+  safeText(doc, params.institutionName.toUpperCase(), 10, 29, CARD_WIDTH - 20, { height: 12 })
 
-  // Contact rows
-  const rows = [
-    { icon: '📍', label: 'Adresse', value: display(params.address) },
-    { icon: '☎', label: 'Tél', value: display(params.phone) },
-    { icon: '✉', label: 'Email', value: display(params.email) },
-    { icon: '🌐', label: 'Ville', value: [params.city, params.country].filter(Boolean).join(', ') || '-' },
+  // Thin accent line
+  doc.rect(10, 40, CARD_WIDTH - 20, 0.8).fill(accent)
+
+  // Contact rows (4 rows, 10pt each, y=43 to y=83)
+  const contactRows = [
+    { label: 'Adresse', value: display(params.address) },
+    { label: 'Tel', value: display(params.phone) },
+    { label: 'Email', value: display(params.email) },
+    { label: 'Ville', value: [params.city, params.country].filter(Boolean).join(', ') || '-' },
   ]
-  rows.forEach((row, i) => {
-    const y = 44 + i * 12
-    doc.fillColor(TEXT).font('Helvetica-Bold').fontSize(5.8).text(row.icon, 14, y, { width: 12 })
-    doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text(row.label.toUpperCase(), 28, y, { width: 40, height: 7 })
-    doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(row.value, 70, y - 0.5, { width: CARD_WIDTH - 82, height: 8, ellipsis: true })
-    if (i < rows.length - 1) doc.moveTo(14, y + 10).lineTo(CARD_WIDTH - 14, y + 10).strokeColor('#E5EBF3').lineWidth(0.4).stroke()
+  contactRows.forEach((row, i) => {
+    const y = 43 + i * 10
+    doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text(row.label.toUpperCase(), 10, y, { width: 36, height: 7 })
+    doc.fillColor(TEXT).font('Helvetica').fontSize(6).text(row.value, 50, y - 0.5, { width: CARD_WIDTH - 62, height: 8, ellipsis: true })
+    if (i < contactRows.length - 1) {
+      doc.moveTo(10, y + 8).lineTo(CARD_WIDTH - 10, y + 8).strokeColor('#E5EBF3').lineWidth(0.4).stroke()
+    }
   })
 
-  // Divider
-  doc.moveTo(14, 94).lineTo(CARD_WIDTH - 14, 94).strokeColor('#2D7DF4').lineWidth(0.8).stroke()
+  // Parent section divider (y=86)
+  doc.moveTo(10, 86).lineTo(CARD_WIDTH - 10, 86).strokeColor(accent).lineWidth(0.8).stroke()
 
-  // Parent section
-  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(6.2).text('👥  CONTACT PARENT / TUTEUR', 14, 98, { width: CARD_WIDTH - 28, height: 8 })
-  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text('Nom :', 14, 110, { width: 38, height: 7 })
-  doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(params.parentName ?? '-', 54, 110, { width: CARD_WIDTH - 66, height: 7, ellipsis: true })
-  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text('Tél :', 14, 120, { width: 38, height: 7 })
-  doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(params.parentPhone ?? '-', 54, 120, { width: CARD_WIDTH - 66, height: 7, ellipsis: true })
+  // Parent section header (y=89)
+  doc.rect(10, 89, CARD_WIDTH - 20, 11).fill('#EAF3FF')
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(6.5)
+  safeText(doc, 'CONTACT PARENT / TUTEUR', 14, 92, CARD_WIDTH - 28, { height: 8 })
 
-  // Notice
-  doc.roundedRect(10, 130, CARD_WIDTH - 20, 14, 4).fill('#EAF3FF')
-  doc.fillColor('#06224A').font('Helvetica').fontSize(5.5).text('En cas de perte, merci de retourner cette carte à l\'établissement.', 14, 135, { width: CARD_WIDTH - 28, align: 'center', height: 7 })
+  // Parent info (y=103-121)
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text('Nom :', 10, 104, { width: 28, height: 7 })
+  doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(params.parentName ?? '-', 42, 104, { width: CARD_WIDTH - 54, height: 7, ellipsis: true })
+  doc.moveTo(10, 113).lineTo(CARD_WIDTH - 10, 113).strokeColor('#E5EBF3').lineWidth(0.4).stroke()
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text('Tel :', 10, 115, { width: 28, height: 7 })
+  doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(params.parentPhone ?? '-', 42, 115, { width: CARD_WIDTH - 54, height: 7, ellipsis: true })
+
+  // Notice box (y=125-138)
+  doc.roundedRect(8, 125, CARD_WIDTH - 16, 13, 3).fill('#F0F5FF')
+  doc.fillColor(primary).font('Helvetica').fontSize(5.5)
+  safeText(doc, 'En cas de perte, merci de retourner cette carte a l\'etablissement.', 12, 129, CARD_WIDTH - 24, { align: 'center', height: 7 })
 
   // Footer
-  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
-  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+  doc.rect(0, 140, CARD_WIDTH, 13).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5)
+  safeText(doc, 'SORASCHOOL - GESTION SCOLAIRE INTELLIGENTE', 0, 145, CARD_WIDTH, { align: 'center', height: 7 })
 }
 
 function drawTeacherCardFront(doc: PDFKit.PDFDocument, params: {
@@ -1059,37 +1089,47 @@ function drawTeacherCardFront(doc: PDFKit.PDFDocument, params: {
   doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
   drawCardHeader(doc, { institutionName: params.institutionName, acronym: params.acronym, year: params.year, logo: params.logo, primaryColor: primary, accentColor: accent })
 
-  drawPhoto(doc, 8, 44, 64, 76, params.photo, `${params.firstName} ${params.lastName}`)
+  // Card-type banner
+  doc.rect(0, 38.5, CARD_WIDTH, 11.5).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7.5)
+  safeText(doc, 'CARTE PROFESSEUR', 8, 41.5, CARD_WIDTH - 16, { height: 9 })
 
-  doc.rect(78, 42, CARD_WIDTH - 78, 16).fill(primary)
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7).text('CARTE PROFESSEUR', 82, 47, { width: CARD_WIDTH - 86, height: 9 })
+  // Photo
+  drawPhoto(doc, 6, 52, 60, 60, params.photo, `${params.firstName} ${params.lastName}`)
 
-  const infoX = 80, infoW = CARD_WIDTH - infoX - 8
+  // Info rows
+  const infoX = 72, infoW = CARD_WIDTH - infoX - 6
   const rows = [
     { label: 'Nom', value: params.lastName },
-    { label: 'Prénom', value: params.firstName },
+    { label: 'Prenom', value: params.firstName },
     { label: 'ID Personnel', value: params.matricule },
-    { label: 'Matière', value: params.subject },
+    { label: 'Matiere', value: params.subject },
     { label: 'Contrat', value: params.contractType },
     { label: 'Statut', value: params.status },
   ]
   rows.forEach((row, i) => {
-    drawCardInfoRow(doc, row.label, row.value, infoX, 62 + i * 12, infoW, primary, i === rows.length - 1)
+    drawCardInfoRow(doc, row.label, row.value, infoX, 54 + i * 10.5, infoW, primary, i === rows.length - 1)
   })
 
-  doc.moveTo(66, 128).bezierCurveTo(100, 122, 140, 124, CARD_WIDTH, 122).strokeColor('#E5EBF3').lineWidth(1).stroke()
+  // Separator
+  doc.moveTo(6, 116).lineTo(CARD_WIDTH - 6, 116).strokeColor('#E5EBF3').lineWidth(0.6).stroke()
 
-  // QR code for attendance — prominent with label
-  doc.roundedRect(8, 120, 32, 32, 4).fillAndStroke('#FFFFFF', '#D7E6FF')
-  doc.image(params.qr, 10, 122, { width: 28, height: 28 })
-  doc.rect(8, 148, 32, 5).fill(primary)
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(4).text('QR POINTAGE', 8, 149, { width: 32, align: 'center' })
+  // Footer bar first (y=141 to 153)
+  doc.rect(0, 141, CARD_WIDTH, 12).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5)
+  safeText(doc, 'SORASCHOOL - GESTION SCOLAIRE INTELLIGENTE', 0, 145.5, CARD_WIDTH, { align: 'center', height: 6 })
 
-  doc.roundedRect(CARD_WIDTH - 70, 124, 62, 22, 4).strokeColor('#C7CED8').lineWidth(1).stroke()
-  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(6).text('Signature Direction', CARD_WIDTH - 70, 130, { width: 62, align: 'center' })
+  // QR code for attendance (y=118, 21×21 → ends y=139)
+  doc.roundedRect(6, 118, 24, 24, 3).fillAndStroke('#F0F5FF', accent)
+  doc.image(params.qr, 9, 121, { width: 18, height: 18 })
+  // "QR POINTAGE" label on footer bar
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(4.5)
+  safeText(doc, 'QR POINTAGE', 6, 142.5, 24, { align: 'center', height: 5 })
 
-  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
-  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+  // Signature box (y=118, h=20 → ends y=138)
+  doc.roundedRect(CARD_WIDTH - 78, 118, 70, 20, 3).strokeColor(accent).lineWidth(0.8).stroke()
+  doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(5.5)
+  safeText(doc, 'Signature Direction', CARD_WIDTH - 78, 126, 70, { align: 'center', height: 8 })
 }
 
 function drawTeacherCardBack(doc: PDFKit.PDFDocument, params: {
@@ -1103,45 +1143,55 @@ function drawTeacherCardBack(doc: PDFKit.PDFDocument, params: {
 
   doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
 
-  // Header
-  doc.rect(0, 0, CARD_WIDTH, 24).fill(primary)
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(6.8)
-  safeText(doc, '⏱  POINTAGE DU PERSONNEL', 14, 8, CARD_WIDTH - 28, { height: 9 })
+  // Header (0-26)
+  doc.rect(0, 0, CARD_WIDTH, 26).fill(primary)
+  doc.rect(0, 0, CARD_WIDTH, 3).fill(accent)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7)
+  safeText(doc, 'POINTAGE DU PERSONNEL', 10, 10, CARD_WIDTH - 20, { height: 10 })
 
-  // Two-column layout: big QR left + info right
-  const qrSize = 72
-  const qrX = 14, qrY = 30
-  doc.roundedRect(qrX, qrY, qrSize, qrSize, 6).strokeColor('#2D7DF4').lineWidth(1.5).stroke()
-  doc.image(params.qr, qrX + 4, qrY + 4, { width: qrSize - 8, height: qrSize - 8 })
-  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(5.5).text('QR CODE POINTAGE', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' })
+  // Two-column layout: QR left (64×64, x=10, y=30) | info right
+  const qrSize = 64, qrX = 10, qrY = 30
+  doc.roundedRect(qrX, qrY, qrSize, qrSize, 5).strokeColor(accent).lineWidth(1.2).stroke()
+  doc.image(params.qr, qrX + 3, qrY + 3, { width: qrSize - 6, height: qrSize - 6 })
+  doc.rect(qrX, qrY + qrSize + 2, qrSize, 8).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5)
+  safeText(doc, 'QR CODE POINTAGE', qrX, qrY + qrSize + 3.5, qrSize, { align: 'center', height: 7 })
 
-  // Right column info
-  const infoX = qrX + qrSize + 12
-  const infoW = CARD_WIDTH - infoX - 10
-  doc.fillColor(TEXT).font('Helvetica').fontSize(6).text('Ce QR code est utilisé pour le pointage d\'entrée et de sortie.', infoX, 32, { width: infoW, height: 24 })
-  doc.moveTo(infoX, 58).lineTo(CARD_WIDTH - 10, 58).strokeColor('#2D7DF4').lineWidth(0.6).stroke()
-  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(5.8).text('INFORMATIONS ÉTABLISSEMENT', infoX, 62, { width: infoW, height: 8 })
+  // Right column (x=82)
+  const infoX = 82, infoW = CARD_WIDTH - infoX - 8
+  doc.fillColor(TEXT).font('Helvetica').fontSize(5.8)
+  safeText(doc, 'Ce QR code permet le pointage electronique des entrees et sorties.', infoX, 33, infoW, { height: 20 })
+
+  doc.moveTo(infoX, 57).lineTo(CARD_WIDTH - 8, 57).strokeColor(accent).lineWidth(0.6).stroke()
+
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(6)
+  safeText(doc, 'INFORMATIONS', infoX, 60, infoW, { height: 8 })
+
   const contact = [
     { label: 'Adresse', value: display(params.address) },
-    { label: 'Tél', value: display(params.phone) },
+    { label: 'Tel', value: display(params.phone) },
     { label: 'Email', value: display(params.email) },
   ]
   contact.forEach((row, i) => {
-    const y = 74 + i * 12
-    doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text(row.label + ' :', infoX, y, { width: 28, height: 7 })
-    doc.fillColor(TEXT).font('Helvetica').fontSize(6).text(row.value, infoX + 30, y - 0.5, { width: infoW - 30, height: 8, ellipsis: true })
+    const y = 71 + i * 10
+    doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.5).text(row.label + ':', infoX, y, { width: 28, height: 7 })
+    doc.fillColor(TEXT).font('Helvetica').fontSize(5.8).text(row.value, infoX + 30, y - 0.5, { width: infoW - 30, height: 8, ellipsis: true })
   })
 
-  // Notice
-  doc.roundedRect(10, 110, CARD_WIDTH - 20, 14, 4).fill('#EAF3FF')
-  doc.fillColor('#06224A').font('Helvetica').fontSize(5.5).text('En cas de perte, contactez la Direction.', 14, 115, { width: CARD_WIDTH - 28, align: 'center', height: 7 })
+  // Notice box (y=110-123)
+  doc.roundedRect(8, 110, CARD_WIDTH - 16, 12, 3).fill('#F0F5FF')
+  doc.fillColor(primary).font('Helvetica').fontSize(5.5)
+  safeText(doc, 'En cas de perte, contactez la Direction.', 12, 114, CARD_WIDTH - 24, { align: 'center', height: 7 })
 
-  // Matricule bar
-  doc.rect(10, 128, CARD_WIDTH - 20, 16, ).fill(primary)
-  doc.fillColor(accent).font('Helvetica-Bold').fontSize(6.5).text(params.matricule, 14, 133, { width: CARD_WIDTH - 28, align: 'center' })
+  // Matricule bar (y=125-138)
+  doc.rect(8, 125, CARD_WIDTH - 16, 13).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(7)
+  safeText(doc, params.matricule, 12, 129, CARD_WIDTH - 24, { align: 'center', height: 9 })
 
-  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
-  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+  // Footer
+  doc.rect(0, 140, CARD_WIDTH, 13).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5)
+  safeText(doc, 'SORASCHOOL - GESTION SCOLAIRE INTELLIGENTE', 0, 145, CARD_WIDTH, { align: 'center', height: 7 })
 }
 
 export async function renderStudentCardPdf(institutionId: string, studentId: string, _lang = 'FR') {
