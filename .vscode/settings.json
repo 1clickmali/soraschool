@@ -1,3 +1,9 @@
 {
-    "workbench.commandPalette.showAskInChat": false
+  "workbench.commandPalette.showAskInChat": false,
+  "files.associations": {
+    "**/src/modules/pdf/templates/*.html": "handlebars"
+  },
+  "emmet.includeLanguages": {
+    "handlebars": "html"
+  }
 }

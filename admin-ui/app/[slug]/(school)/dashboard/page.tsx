@@ -19,7 +19,27 @@ import {
   Plus,
   UserCog,
   MapPin,
+  ArrowUpRight,
+  Clock,
+  FileText,
+  ShieldCheck,
+  WalletCards,
+  BarChart3,
 } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { schoolApi, type CentralSchool, type CreateCentralSchoolInput, type SchoolDashboardData, type Student } from "@/lib/school-api";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
@@ -38,16 +58,18 @@ function StatCard({
   value,
   color,
   sub,
+  href,
 }: {
   icon: React.ElementType;
   label: string;
   value: string | number;
   color: string;
   sub?: string;
+  href?: string;
 }) {
-  return (
+  const content = (
     <motion.div variants={item}>
-      <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5 hover:bg-white/[0.05] transition-colors">
+      <div className="sora-premium-card group rounded-2xl p-5 transition-all hover:-translate-y-0.5">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
@@ -58,9 +80,15 @@ function StatCard({
             <Icon className="w-5 h-5" />
           </div>
         </div>
+        {href && (
+          <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-700">
+            Ouvrir le module <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </div>
+        )}
       </div>
     </motion.div>
   );
+  return href ? <Link href={href}>{content}</Link> : content;
 }
 
 function SkeletonCard() {
@@ -121,6 +149,15 @@ function studentStatusBadge(status: string) {
 function emptyRevenue() {
   const months = ["Nov", "Déc", "Jan", "Fév", "Mar", "Avr"];
   return months.map((month) => ({ month, amount: 0 }));
+}
+
+function safeNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function shortNumber(value: number) {
+  return new Intl.NumberFormat("fr-CI", { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value);
 }
 
 const KIND_OPTIONS = [
@@ -198,7 +235,7 @@ function CentralAdminWorkspace({
 
   const stats = [
     { icon: Building2, label: "Écoles / campus", value: dashData?.totalSchools ?? "—", color: "bg-amber-500/15 text-amber-300" },
-    { icon: GraduationCap, label: "Élèves consolidés", value: dashData?.totalStudents ?? "—", color: "bg-emerald-500/15 text-emerald-400" },
+    { icon: GraduationCap, label: "Apprenants consolidés", value: dashData?.totalStudents ?? "—", color: "bg-emerald-500/15 text-emerald-400" },
     { icon: BookOpen, label: "Enseignants", value: dashData?.totalTeachers ?? "—", color: "bg-blue-500/15 text-blue-400" },
     { icon: LayoutGrid, label: "Classes", value: dashData?.totalClasses ?? "—", color: "bg-purple-500/15 text-purple-400" },
     { icon: DollarSign, label: "Revenus consolidés", value: dashData?.paidInvoices ? formatCurrency(dashData.paidInvoices) : "—", color: "bg-emerald-600/15 text-emerald-300" },
@@ -212,7 +249,7 @@ function CentralAdminWorkspace({
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold mb-3">
           <Building2 className="w-3.5 h-3.5" />
-          Espace groupe Enterprise
+          Espace groupe Premium
         </div>
         <h1 className="text-2xl font-bold font-heading text-white">Tableau Administration Centrale</h1>
         <p className="text-gray-400 text-sm mt-1">Vue consolidée de toutes les écoles, campus et annexes du groupe.</p>
@@ -236,13 +273,14 @@ function CentralAdminWorkspace({
           <Plus className="w-4 h-4" />
           Créer une école
         </button>
-        <a
-          href="#schools"
+        <button
+          type="button"
+          onClick={() => document.getElementById("schools")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/10 text-gray-300 text-sm font-medium transition-all"
         >
           <UserCog className="w-4 h-4" />
           Nommer directeur
-        </a>
+        </button>
       </div>
 
       {showCreate && (
@@ -298,7 +336,7 @@ function CentralAdminWorkspace({
                     </p>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center min-w-[260px]">
-                    <div><p className="text-white font-bold">{school.students ?? school._count?.students ?? 0}</p><p className="text-[10px] text-gray-500">Élèves</p></div>
+                    <div><p className="text-white font-bold">{school.students ?? school._count?.students ?? 0}</p><p className="text-[10px] text-gray-500">Apprenants</p></div>
                     <div><p className="text-white font-bold">{school.teachers ?? school._count?.teachers ?? 0}</p><p className="text-[10px] text-gray-500">Profs</p></div>
                     <div><p className="text-white font-bold">{formatCurrency(school.revenue ?? 0)}</p><p className="text-[10px] text-gray-500">Revenus</p></div>
                   </div>
@@ -354,21 +392,24 @@ export default function SchoolDashboardPage() {
   const stats = [
     {
       icon: GraduationCap,
-      label: "Élèves inscrits",
+      label: "Apprenants inscrits",
       value: dashData?.totalStudents ?? "—",
       color: "bg-emerald-500/15 text-emerald-400",
+      href: `/${slug}/students`,
     },
     {
       icon: BookOpen,
       label: "Enseignants",
       value: dashData?.totalTeachers ?? "—",
       color: "bg-blue-500/15 text-blue-400",
+      href: `/${slug}/teachers`,
     },
     {
       icon: LayoutGrid,
       label: "Classes",
       value: dashData?.totalClasses ?? "—",
       color: "bg-purple-500/15 text-purple-400",
+      href: `/${slug}/classes`,
     },
     {
       icon: DollarSign,
@@ -376,12 +417,14 @@ export default function SchoolDashboardPage() {
       value: dashData?.paidInvoices ? formatCurrency(dashData.paidInvoices) : "—",
       color: "bg-emerald-600/15 text-emerald-300",
       sub: "Factures réglées",
+      href: `/${slug}/payments`,
     },
     {
       icon: AlertCircle,
       label: "Paiements en attente",
       value: dashData?.pendingInvoices ?? "—",
       color: "bg-amber-500/15 text-amber-400",
+      href: `/${slug}/payments`,
     },
     {
       icon: Users,
@@ -389,160 +432,255 @@ export default function SchoolDashboardPage() {
       value: dashData?.recentAbsences ?? "—",
       color: "bg-red-500/15 text-red-400",
       sub: "7 derniers jours",
+      href: `/${slug}/attendance`,
     },
   ];
   const revenueData = dashData?.monthlyPayments?.length ? dashData.monthlyPayments : emptyRevenue();
+  const totalCollected = revenueData.reduce((sum, row) => sum + safeNumber(row.amount), 0);
+  const learners = safeNumber(dashData?.totalStudents);
+  const teachers = safeNumber(dashData?.totalTeachers);
+  const classesCount = safeNumber(dashData?.totalClasses);
+  const pendingInvoices = safeNumber(dashData?.pendingInvoices);
+  const recentAbsences = safeNumber(dashData?.recentAbsences);
+  const paidInvoices = safeNumber(dashData?.paidInvoices);
+  const academicMix = [
+    { name: "Apprenants", value: learners, color: "#10b981", href: `/${slug}/students` },
+    { name: "Enseignants", value: teachers, color: "#0ea5e9", href: `/${slug}/teachers` },
+    { name: "Classes", value: classesCount, color: "#8b5cf6", href: `/${slug}/classes` },
+  ].filter((entry) => entry.value > 0);
+  const riskData = [
+    { name: "Factures à suivre", value: pendingInvoices, color: "#f59e0b", href: `/${slug}/payments` },
+    { name: "Absences / retards", value: recentAbsences, color: "#ef4444", href: `/${slug}/attendance` },
+    { name: "Messages support", value: safeNumber(dashData?.urgentMessages), color: "#6366f1", href: `/${slug}/messages` },
+  ];
+  const cockpitCards = [
+    { title: "Admissions", desc: "Valider les dossiers et décisions de fin d’année", href: `/${slug}/inscriptions-validation`, icon: ClipboardCheck, tone: "from-emerald-500 to-teal-500" },
+    { title: "Rapports", desc: "Exporter PDF, Excel, CSV et analyses direction", href: `/${slug}/rapports`, icon: FileText, tone: "from-blue-500 to-cyan-500" },
+    { title: "Budget", desc: "Suivre demandes, validations et dépenses internes", href: `/${slug}/budget`, icon: WalletCards, tone: "from-amber-500 to-orange-500" },
+    { title: "Pointage RH", desc: "Entrées, sorties, retards, absences et pénalités", href: `/${slug}/pointage-personnel`, icon: Clock, tone: "from-violet-500 to-indigo-500" },
+    { title: "Personnel", desc: "Contrats, rôles, QR codes et permissions", href: `/${slug}/personnel`, icon: ShieldCheck, tone: "from-slate-700 to-slate-950" },
+  ];
 
   if (dashData?.centralAdministration) {
     return <CentralAdminWorkspace dashData={dashData} loading={loading} />;
   }
 
   return (
-    <div>
-      {/* Header */}
+    <div className="space-y-6">
       <motion.div
-        initial={{ opacity: 0, y: -10 }}
+        initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="mb-6"
+        className="overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-gradient-to-br from-white/90 via-emerald-50/70 to-sky-50/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.10)] dark:border-white/10 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-emerald-950/55"
       >
-        <h1 className="text-2xl font-bold font-heading text-white">Tableau de bord</h1>
-        <p className="text-gray-400 text-sm mt-1">Vue d&apos;ensemble de votre établissement</p>
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr] lg:items-center">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Cockpit Direction
+            </div>
+            <h1 className="max-w-3xl font-heading text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+              Pilotez l’école sans chercher les informations.
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              Finance, pédagogie, assiduité, inscriptions, personnel et rapports sont regroupés ici avec des accès directs.
+              Chaque carte est cliquable pour ouvrir le module concerné.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Link href={`/${slug}/rapports`} className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:-translate-y-0.5">
+                <BarChart3 className="h-4 w-4" /> Voir les rapports
+              </Link>
+              <Link href={`/${slug}/students`} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/75 px-4 py-2.5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-emerald-300">
+                <UserPlus className="h-4 w-4" /> Ajouter un apprenant
+              </Link>
+              <Link href={`/${slug}/payments`} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/75 px-4 py-2.5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-emerald-300">
+                <CreditCard className="h-4 w-4" /> Encaisser
+              </Link>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Link href={`/${slug}/payments`} className="rounded-3xl bg-slate-950 p-5 text-white shadow-xl shadow-slate-900/20 transition hover:-translate-y-1">
+              <p className="text-xs font-semibold text-emerald-200">Encaissé</p>
+              <p className="mt-2 text-2xl font-black">{formatCurrency(paidInvoices || totalCollected)}</p>
+              <p className="mt-4 flex items-center gap-1 text-xs text-white/70">Finance <ArrowUpRight className="h-3 w-3" /></p>
+            </Link>
+            <Link href={`/${slug}/attendance`} className="rounded-3xl border border-red-100 bg-white/80 p-5 shadow-lg shadow-slate-900/5 transition hover:-translate-y-1">
+              <p className="text-xs font-semibold text-red-600">Alertes 7 jours</p>
+              <p className="mt-2 text-2xl font-black text-slate-950">{recentAbsences}</p>
+              <p className="mt-4 flex items-center gap-1 text-xs text-slate-500">Assiduité <ArrowUpRight className="h-3 w-3" /></p>
+            </Link>
+          </div>
+        </div>
       </motion.div>
 
-      {/* Stats grid */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : (
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6"
-        >
+        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           {stats.map((s) => (
-            <StatCard key={s.label} icon={s.icon} label={s.label} value={s.value} color={s.color} sub={s.sub} />
+            <StatCard key={s.label} icon={s.icon} label={s.label} value={s.value} color={s.color} sub={s.sub} href={s.href} />
           ))}
         </motion.div>
       )}
 
-      {/* Quick actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-        className="mb-6"
-      >
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Actions rapides</h2>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/${slug}/students`}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/25 text-emerald-400 text-sm font-medium transition-all hover:scale-[1.02]"
-          >
-            <UserPlus className="w-4 h-4" />
-            Ajouter un élève
-          </Link>
-          <Link
-            href={`/${slug}/payments`}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/10 text-gray-300 text-sm font-medium transition-all hover:scale-[1.02]"
-          >
-            <CreditCard className="w-4 h-4" />
-            Enregistrer paiement
-          </Link>
-          <Link
-            href={`/${slug}/attendance`}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/10 text-gray-300 text-sm font-medium transition-all hover:scale-[1.02]"
-          >
-            <ClipboardCheck className="w-4 h-4" />
-            Faire l&apos;appel
-          </Link>
-        </div>
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent students */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.4 }}
-          className="lg:col-span-2 bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden"
-        >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-            <div className="flex items-center gap-2">
-              <GraduationCap className="w-4 h-4 text-emerald-500" />
-              <h2 className="text-sm font-semibold text-white">Élèves récents</h2>
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="sora-premium-card rounded-[1.75rem] p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-heading text-lg font-bold text-slate-950">Revenus et encaissements</h2>
+              <p className="text-xs text-slate-500">Tendance des paiements sur les 6 derniers mois.</p>
             </div>
-            <Link href={`/${slug}/students`} className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">
-              Voir tous
+            <Link href={`/${slug}/payments`} className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+              Finance <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueData}>
+                <defs>
+                  <linearGradient id="directorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.42} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(15,23,42,.08)" />
+                <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} tickFormatter={(value) => shortNumber(Number(value))} />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} contentStyle={{ borderRadius: 18, border: "1px solid rgba(15,23,42,.12)" }} />
+                <Area type="monotone" dataKey="amount" stroke="#059669" strokeWidth={3} fill="url(#directorRevenue)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="rounded-2xl bg-emerald-50 p-3"><p className="text-xs text-emerald-700">Total 6 mois</p><p className="font-bold text-slate-950">{formatCurrency(totalCollected)}</p></div>
+            <div className="rounded-2xl bg-amber-50 p-3"><p className="text-xs text-amber-700">Factures ouvertes</p><p className="font-bold text-slate-950">{pendingInvoices}</p></div>
+            <div className="rounded-2xl bg-sky-50 p-3"><p className="text-xs text-sky-700">Moy. mensuelle</p><p className="font-bold text-slate-950">{formatCurrency(Math.round(totalCollected / Math.max(revenueData.length, 1)))}</p></div>
+          </div>
+        </motion.div>
 
-          {loading ? (
-            <div className="p-5 space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-3 animate-pulse">
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-                  <div className="flex-1">
-                    <div className="h-3 bg-white/10 rounded w-32 mb-1.5" />
-                    <div className="h-2 bg-white/[0.07] rounded w-20" />
-                  </div>
-                </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="sora-premium-card rounded-[1.75rem] p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="font-heading text-lg font-bold text-slate-950">Structure école</h2>
+                <p className="text-xs text-slate-500">Répartition des grands volumes.</p>
+              </div>
+              <Link href={`/${slug}/classes`} className="text-xs font-bold text-emerald-700">Ouvrir</Link>
+            </div>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={academicMix.length ? academicMix : [{ name: "Aucune donnée", value: 1, color: "#cbd5e1" }]} dataKey="value" innerRadius={58} outerRadius={88} paddingAngle={4}>
+                    {(academicMix.length ? academicMix : [{ color: "#cbd5e1" }]).map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(value) => shortNumber(Number(value))} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {academicMix.map((entry) => (
+                <Link key={entry.name} href={entry.href} className="rounded-2xl border border-slate-200 bg-white/70 p-3 text-center transition hover:border-emerald-300">
+                  <p className="text-lg font-black text-slate-950">{entry.value}</p>
+                  <p className="text-[10px] text-slate-500">{entry.name}</p>
+                </Link>
               ))}
             </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="sora-premium-card rounded-[1.75rem] p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="font-heading text-lg font-bold text-slate-950">Points à surveiller</h2>
+                <p className="text-xs text-slate-500">Cliquez pour traiter rapidement.</p>
+              </div>
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={riskData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(15,23,42,.08)" />
+                  <XAxis dataKey="name" hide />
+                  <YAxis hide />
+                  <Tooltip />
+                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                    {riskData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-2">
+              {riskData.map((entry) => (
+                <Link key={entry.name} href={entry.href} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-sm transition hover:border-amber-300">
+                  <span className="font-semibold text-slate-700">{entry.name}</span>
+                  <span className="font-black text-slate-950">{entry.value}</span>
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="sora-premium-card overflow-hidden rounded-[1.75rem]">
+          <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-emerald-600" />
+              <h2 className="text-sm font-bold text-slate-950">Apprenants récents</h2>
+            </div>
+            <Link href={`/${slug}/students`} className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">Voir tous <ArrowUpRight className="h-3 w-3" /></Link>
+          </div>
+          {loading ? (
+            <div className="p-5 space-y-3">
+              {[...Array(5)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-2xl bg-slate-200/70" />)}
+            </div>
           ) : recentStudents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-              <GraduationCap className="w-10 h-10 mb-2 opacity-30" />
-              <p className="text-sm">Aucun élève enregistré</p>
-              <Link href={`/${slug}/students`} className="text-xs text-emerald-500 hover:text-emerald-400 mt-2">
-                Ajouter le premier élève
-              </Link>
+            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+              <GraduationCap className="mb-2 h-10 w-10 opacity-30" />
+              <p className="text-sm">Aucun apprenant enregistré</p>
+              <Link href={`/${slug}/students`} className="mt-2 text-xs font-bold text-emerald-700">Ajouter le premier apprenant</Link>
             </div>
           ) : (
-            <div className="divide-y divide-white/[0.04]">
-              {recentStudents.map((s) => (
-                <div key={s.id} className="flex items-center gap-4 px-5 py-3 hover:bg-white/[0.02] transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                    {(s.firstName[0] + s.lastName[0]).toUpperCase()}
+            <div className="divide-y divide-slate-200/80">
+              {recentStudents.map((studentRecord) => (
+                <Link key={studentRecord.id} href={`/${slug}/students`} className="flex items-center gap-4 px-5 py-3 transition hover:bg-emerald-50/70">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-xs font-bold text-white">
+                    {(studentRecord.firstName[0] + studentRecord.lastName[0]).toUpperCase()}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
-                      {s.firstName} {s.lastName}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {s.classroom?.name || "Classe non assignée"} · {s.matricule || "—"}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-950">{studentRecord.firstName} {studentRecord.lastName}</p>
+                    <p className="truncate text-xs text-slate-500">{studentRecord.classroom?.name || "Classe non assignée"} · {studentRecord.matricule || "—"}</p>
                   </div>
-                  <div className="flex-shrink-0">
-                    {studentStatusBadge(s.status)}
-                  </div>
-                  <p className="text-xs text-gray-600 flex-shrink-0 hidden md:block">
-                    {formatDate(s.createdAt)}
-                  </p>
-                </div>
+                  <div className="hidden shrink-0 md:block">{studentStatusBadge(studentRecord.status)}</div>
+                  <p className="hidden shrink-0 text-xs text-slate-400 md:block">{formatDate(studentRecord.createdAt)}</p>
+                </Link>
               ))}
             </div>
           )}
         </motion.div>
 
-        {/* Revenue chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.4 }}
-          className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
-            <h2 className="text-sm font-semibold text-white">Paiements (6 mois)</h2>
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="sora-premium-card rounded-[1.75rem] p-5">
+          <div className="mb-4">
+            <h2 className="font-heading text-lg font-bold text-slate-950">Modules Direction</h2>
+            <p className="text-xs text-slate-500">Accès rapides aux décisions importantes.</p>
           </div>
-          <RevenueBar data={revenueData} />
-          <div className="mt-3 pt-3 border-t border-white/[0.06]">
-            <p className="text-xs text-gray-500">Total encaissé</p>
-            <p className="text-lg font-bold text-white font-heading">
-              {formatCurrency(revenueData.reduce((s, d) => s + d.amount, 0))}
-            </p>
+          <div className="grid gap-3">
+            {cockpitCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link key={card.title} href={card.href} className="group flex items-center gap-3 rounded-3xl border border-slate-200 bg-white/75 p-3 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg">
+                  <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg", card.tone)}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-950">{card.title}</p>
+                    <p className="truncate text-xs text-slate-500">{card.desc}</p>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-emerald-600" />
+                </Link>
+              );
+            })}
           </div>
         </motion.div>
       </div>

@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { UserRole, ExportFormat, ReportType } from '@prisma/client'
 import { prisma } from '../../config/prisma'
@@ -14,6 +14,7 @@ import {
   fetchPedagogySection,
   fetchAttendanceSection,
   fetchTeachersSection,
+  fetchStaffSection,
   fetchDisciplineSection,
   fetchCalendarSection,
   fetchAdminSection,
@@ -82,8 +83,48 @@ function parseDateRange(query: { startDate?: string; endDate?: string; reportTyp
 }
 
 function parseSections(sectionsParam: string | undefined): Set<string> {
-  if (!sectionsParam) return new Set(['summary', 'finance', 'pedagogy', 'attendance', 'teachers', 'discipline', 'calendar', 'administrative'])
+  if (!sectionsParam) return new Set(['summary', 'finance', 'pedagogy', 'attendance', 'teachers', 'staff', 'discipline', 'calendar', 'administrative'])
   return new Set(sectionsParam.split(',').map((s) => s.trim().toLowerCase()))
+}
+
+async function applyReportScope(
+  req: Request,
+  filters: ReportFilters,
+  query: { classroomId?: string; teacherId?: string; subjectId?: string }
+) {
+  if (req.user?.role !== UserRole.TEACHER) return filters
+
+  const teacher = await prisma.teacher.findFirst({
+    where: { institutionId: req.institutionId!, userId: req.user.id },
+    select: { id: true }
+  })
+  if (!teacher) throw forbidden('Profil enseignant introuvable')
+
+  if (query.teacherId && query.teacherId !== teacher.id) {
+    throw forbidden('Vous ne pouvez générer que les rapports de vos propres cours')
+  }
+
+  const assignments = await prisma.teacherAssignment.findMany({
+    where: { institutionId: req.institutionId!, teacherId: teacher.id },
+    select: { classroomId: true, subjectId: true }
+  })
+
+  const classroomIds = [...new Set(assignments.map((assignment) => assignment.classroomId))]
+  const subjectIds = [...new Set(assignments.map((assignment) => assignment.subjectId))]
+
+  if (query.classroomId && !classroomIds.includes(query.classroomId)) {
+    throw forbidden('Vous ne pouvez accéder qu’aux rapports de vos classes')
+  }
+  if (query.subjectId && !subjectIds.includes(query.subjectId)) {
+    throw forbidden('Vous ne pouvez accéder qu’aux rapports de vos matières')
+  }
+
+  return {
+    ...filters,
+    teacherId: teacher.id,
+    classroomIds: query.classroomId ? [query.classroomId] : classroomIds.length ? classroomIds : ['__none__'],
+    subjectIds: query.subjectId ? [query.subjectId] : subjectIds.length ? subjectIds : ['__none__']
+  }
 }
 
 async function buildReportData(institutionId: string, filters: ReportFilters, sections: Set<string>, role: UserRole) {
@@ -101,6 +142,8 @@ async function buildReportData(institutionId: string, filters: ReportFilters, se
   const canSeeAttendance = isTeacher || isDirector
   const canSeeDiscipline = isDirector
   const canSeeTeachers = isDirector
+  const canSeeStaff = isDirector || isAccountant || isSecretariat
+  const canSeeStaffPayroll = isDirector || isAccountant
 
   if ((canSeeAll || sections.has('summary')) && isDirector) {
     result.summary = await fetchSummarySection(filters)
@@ -117,6 +160,9 @@ async function buildReportData(institutionId: string, filters: ReportFilters, se
   if (canSeeTeachers && sections.has('teachers')) {
     result.teachers = await fetchTeachersSection(filters)
   }
+  if (canSeeStaff && sections.has('staff')) {
+    result.staff = await fetchStaffSection(filters, canSeeStaffPayroll)
+  }
   if (canSeeDiscipline && sections.has('discipline')) {
     result.discipline = await fetchDisciplineSection(filters)
   }
@@ -128,6 +174,55 @@ async function buildReportData(institutionId: string, filters: ReportFilters, se
   }
 
   return result
+}
+
+async function exportExcelReport(req: Request, res: Response, advanced = false) {
+  const { institutionId } = req
+  const query = req.query as z.infer<typeof filtersSchema>['query']
+  const role = req.user!.role
+
+  if (role === UserRole.PARENT || role === UserRole.STUDENT) {
+    throw forbidden('Export non autorisé pour ce rôle')
+  }
+
+  const { startDate, endDate } = parseDateRange(query as { startDate?: string; endDate?: string; reportType?: ReportType })
+  const sections = parseSections(query.sections)
+  const reportType = (query.reportType ?? 'MONTHLY') as ReportType
+
+  const filters: ReportFilters = {
+    institutionId: institutionId!,
+    startDate,
+    endDate,
+    classroomId: query.classroomId,
+    teacherId: query.teacherId,
+    subjectId: query.subjectId,
+    academicYearId: query.academicYearId
+  }
+
+  const institution = await prisma.institution.findUnique({ where: { id: institutionId! } })
+  const scopedFilters = await applyReportScope(req, filters, query)
+  const sectionData = await buildReportData(institutionId!, scopedFilters, sections, role)
+
+  const prefix = advanced ? 'Macro_Excel' : 'Rapport'
+  const reportTitle = `${prefix}_${reportType}_${institution?.name ?? 'École'}`
+  const period = `${startDate.toLocaleDateString('fr-FR')} – ${endDate.toLocaleDateString('fr-FR')}`
+  const generatedAt = new Date().toLocaleString('fr-FR')
+
+  await prisma.exportLog.create({
+    data: {
+      institutionId: institutionId!,
+      userId: req.user!.id,
+      userRole: role,
+      reportType,
+      sections: Array.from(sections),
+      format: ExportFormat.EXCEL,
+      filters: { classroomId: scopedFilters.classroomId, classroomIds: scopedFilters.classroomIds, teacherId: scopedFilters.teacherId, subjectId: scopedFilters.subjectId, subjectIds: scopedFilters.subjectIds, advanced },
+      fileName: `${reportTitle}.xlsx`,
+      ipAddress: req.ip
+    }
+  })
+
+  await streamReportExcel(res, { schoolName: institution?.name ?? 'École', period, generatedAt, reportTitle }, sectionData)
 }
 
 // ── PREVIEW ──────────────────────────────────────────────────────────────────
@@ -152,7 +247,8 @@ reportsRoutes.get(
       academicYearId: query.academicYearId
     }
 
-    const data = await buildReportData(institutionId!, filters, sections, role)
+    const scopedFilters = await applyReportScope(req, filters, query)
+    const data = await buildReportData(institutionId!, scopedFilters, sections, role)
     res.json({ ok: true, data, meta: { startDate, endDate, reportType: query.reportType } })
   })
 )
@@ -185,7 +281,8 @@ reportsRoutes.get(
     }
 
     const institution = await prisma.institution.findUnique({ where: { id: institutionId! } })
-    const sectionData = await buildReportData(institutionId!, filters, sections, role)
+    const scopedFilters = await applyReportScope(req, filters, query)
+    const sectionData = await buildReportData(institutionId!, scopedFilters, sections, role)
 
     const reportTitle = `Rapport_${reportType}_${institution?.name ?? 'École'}`
     const period = `${startDate.toLocaleDateString('fr-FR')} – ${endDate.toLocaleDateString('fr-FR')}`
@@ -199,13 +296,23 @@ reportsRoutes.get(
         reportType,
         sections: Array.from(sections),
         format: ExportFormat.PDF,
-        filters: { classroomId: query.classroomId, teacherId: query.teacherId },
+        filters: { classroomId: scopedFilters.classroomId, classroomIds: scopedFilters.classroomIds, teacherId: scopedFilters.teacherId, subjectId: scopedFilters.subjectId, subjectIds: scopedFilters.subjectIds },
         fileName: `${reportTitle}.pdf`,
         ipAddress: req.ip
       }
     })
 
-    await streamReportPdf(res, { schoolName: institution?.name ?? 'École', period, generatedAt, reportTitle }, sectionData)
+    await streamReportPdf(res, {
+      schoolName: institution?.name ?? 'École',
+      period,
+      generatedAt,
+      reportTitle,
+      country: institution?.country,
+      city: institution?.city,
+      phone: institution?.phone,
+      email: institution?.email,
+      address: institution?.address
+    }, sectionData)
   })
 )
 
@@ -213,52 +320,14 @@ reportsRoutes.get(
 reportsRoutes.get(
   '/export/excel',
   validate(filtersSchema),
-  asyncHandler(async (req, res) => {
-    const { institutionId } = req
-    const query = req.query as z.infer<typeof filtersSchema>['query']
-    const role = req.user!.role
+  asyncHandler((req, res) => exportExcelReport(req, res, false))
+)
 
-    if (role === UserRole.PARENT || role === UserRole.STUDENT) {
-      throw forbidden('Export non autorisé pour ce rôle')
-    }
-
-    const { startDate, endDate } = parseDateRange(query as { startDate?: string; endDate?: string; reportType?: ReportType })
-    const sections = parseSections(query.sections)
-    const reportType = (query.reportType ?? 'MONTHLY') as ReportType
-
-    const filters: ReportFilters = {
-      institutionId: institutionId!,
-      startDate,
-      endDate,
-      classroomId: query.classroomId,
-      teacherId: query.teacherId,
-      subjectId: query.subjectId,
-      academicYearId: query.academicYearId
-    }
-
-    const institution = await prisma.institution.findUnique({ where: { id: institutionId! } })
-    const sectionData = await buildReportData(institutionId!, filters, sections, role)
-
-    const reportTitle = `Rapport_${reportType}_${institution?.name ?? 'École'}`
-    const period = `${startDate.toLocaleDateString('fr-FR')} – ${endDate.toLocaleDateString('fr-FR')}`
-    const generatedAt = new Date().toLocaleString('fr-FR')
-
-    await prisma.exportLog.create({
-      data: {
-        institutionId: institutionId!,
-        userId: req.user!.id,
-        userRole: role,
-        reportType,
-        sections: Array.from(sections),
-        format: ExportFormat.EXCEL,
-        filters: { classroomId: query.classroomId, teacherId: query.teacherId },
-        fileName: `${reportTitle}.xlsx`,
-        ipAddress: req.ip
-      }
-    })
-
-    await streamReportExcel(res, { schoolName: institution?.name ?? 'École', period, generatedAt, reportTitle }, sectionData)
-  })
+// ── EXPORT MACRO EXCEL ──────────────────────────────────────────────────────
+reportsRoutes.get(
+  '/export/macro-excel',
+  validate(filtersSchema),
+  asyncHandler((req, res) => exportExcelReport(req, res, true))
 )
 
 // ── EXPORT CSV ────────────────────────────────────────────────────────────────
@@ -288,8 +357,9 @@ reportsRoutes.get(
     }
 
     const institution = await prisma.institution.findUnique({ where: { id: institutionId! } })
-    const sections = new Set(['summary', 'finance', 'pedagogy', 'attendance', 'teachers', 'discipline'])
-    const sectionData = await buildReportData(institutionId!, filters, sections, role)
+    const sections = new Set(['summary', 'finance', 'pedagogy', 'attendance', 'teachers', 'staff', 'discipline'])
+    const scopedFilters = await applyReportScope(req, filters, query)
+    const sectionData = await buildReportData(institutionId!, scopedFilters, sections, role)
 
     const reportTitle = `Rapport_${reportType}_${institution?.name ?? 'École'}`
     const lines: string[] = [`Rapport;${reportTitle}`, `Période;${startDate.toLocaleDateString('fr-FR')} - ${endDate.toLocaleDateString('fr-FR')}`, '']
@@ -331,6 +401,35 @@ reportsRoutes.get(
       ])
     }
 
+    if (sectionData.staff) {
+      const s = sectionData.staff as Record<string, unknown>
+      addSection('PERSONNEL', [
+        ['Personnel actif', String(s.totalStaff ?? 0)],
+        ['Présences', String(s.present ?? 0)],
+        ['Retards', String(s.late ?? 0)],
+        ['Absences', String(s.absent ?? 0)],
+        ['Départs anticipés', String(s.earlyDeparture ?? 0)],
+        ['Taux de ponctualité', String(s.punctualityRate ?? 0)],
+        ['Pénalités appliquées', String(s.penaltiesApplied ?? 0)],
+        ['Montant pénalités (XOF)', String(s.penaltyAmount ?? 0)],
+        ['Contrats actifs', String(s.contractsActive ?? 0)]
+      ])
+    }
+
+    if (sectionData.administrative) {
+      const a = sectionData.administrative as Record<string, unknown>
+      addSection('ADMINISTRATIF', [
+        ['Nouvelles inscriptions', String(a.newStudents ?? 0)],
+        ['Admissions', String(a.admissions ?? 0)],
+        ['Réinscriptions', String(a.reEnrollments ?? 0)],
+        ['Transferts entrants', String(a.transfersIn ?? 0)],
+        ['Départs / sorties', String(a.departures ?? 0)],
+        ['Documents officiels', String(a.officialDocuments ?? 0)],
+        ['Attestations', String(a.attestationsGenerated ?? 0)],
+        ['Certificats', String(a.certificatesGenerated ?? 0)]
+      ])
+    }
+
     await prisma.exportLog.create({
       data: {
         institutionId: institutionId!,
@@ -353,21 +452,24 @@ reportsRoutes.get(
 // ── HISTORY ───────────────────────────────────────────────────────────────────
 reportsRoutes.get(
   '/history',
-  requireRoles(...DIRECTOR_ROLES, UserRole.ACCOUNTANT, UserRole.SECRETARIAT),
+  requireRoles(...DIRECTOR_ROLES, UserRole.ACCOUNTANT, UserRole.SECRETARIAT, UserRole.TEACHER),
   asyncHandler(async (req, res) => {
     const { institutionId } = req
     const page = Math.max(1, Number(req.query.page ?? 1))
     const limit = Math.min(50, Number(req.query.limit ?? 20))
+    const where = req.user!.role === UserRole.TEACHER
+      ? { institutionId: institutionId!, userId: req.user!.id }
+      : { institutionId: institutionId! }
 
     const [logs, total] = await Promise.all([
       prisma.exportLog.findMany({
-        where: { institutionId: institutionId! },
+        where,
         include: { user: { select: { firstName: true, lastName: true, role: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit
       }),
-      prisma.exportLog.count({ where: { institutionId: institutionId! } })
+      prisma.exportLog.count({ where })
     ])
 
     res.json({ logs, total, page, limit })

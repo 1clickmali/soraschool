@@ -240,7 +240,7 @@ export default function SubjectsPage() {
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-white">Matières</h1>
+          <h1 className="font-heading text-2xl font-bold text-white">Programmes & matières</h1>
           <p className="mt-1 text-sm text-gray-400">Créez les matières et reliez chaque professeur à sa classe et son année scolaire.</p>
         </div>
         <button

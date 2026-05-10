@@ -12,9 +12,21 @@ import { validate } from '../../middlewares/validate'
 import { renderInvoicePdf, renderPaymentReceiptPdf } from '../pdf/pdf.service'
 import { notifyPaymentReceived } from '../../lib/notifications'
 import { getPlatformBranding } from '../../lib/platform-branding'
+import { parentAppUrl, shareParentDocument } from '../../lib/parent-document-share'
+import { sharedDocumentUrl } from '../../lib/shared-document-links'
 
 export const paymentsRoutes = Router()
 paymentsRoutes.use(authenticate, requireTenantUser)
+
+const parentShareBody = z.object({
+  body: z.object({
+    channel: z.enum(['WHATSAPP', 'SMS', 'IN_APP'])
+  })
+})
+
+function formatMoney(amount: number, currency = 'XOF') {
+  return `${new Intl.NumberFormat('fr-FR').format(amount)} ${currency}`
+}
 
 function mapPaymentProvider(value?: string): PaymentProvider {
   switch (value) {
@@ -135,6 +147,61 @@ paymentsRoutes.get(
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="facture-${req.params.id}.pdf"`)
     res.send(buffer)
+  })
+)
+
+paymentsRoutes.post(
+  '/invoices/:id/share-parent',
+  requireRoles(UserRole.CENTRAL_ADMIN, UserRole.DIRECTOR, UserRole.ADMINISTRATION, UserRole.ACCOUNTANT, UserRole.SECRETARIAT),
+  validate(parentShareBody),
+  asyncHandler(async (req, res) => {
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id: req.params.id,
+        institutionId: req.institutionId!,
+        student: getScopedEstablishmentId(req) ? { establishmentId: getScopedEstablishmentId(req) } : undefined
+      },
+      include: {
+        institution: { select: { slug: true, name: true, currency: true } },
+        student: { include: { classroom: true } }
+      }
+    })
+    if (!invoice) throw notFound('Facture introuvable')
+
+    const studentName = `${invoice.student.firstName} ${invoice.student.lastName}`.trim()
+    const balance = Math.max(invoice.totalAmount - invoice.paidAmount, 0)
+    const documentUrl = sharedDocumentUrl({
+      type: 'INVOICE',
+      institutionId: req.institutionId!,
+      invoiceId: invoice.id
+    })
+    const appUrl = parentAppUrl(invoice.institution.slug, 'paiements')
+    const message = [
+      `Bonjour, ${invoice.institution.name} vous informe que la facture ${invoice.number} de ${studentName} est disponible.`,
+      `Montant: ${formatMoney(invoice.totalAmount, invoice.institution.currency)}.`,
+      balance > 0 ? `Reste à payer: ${formatMoney(balance, invoice.institution.currency)}.` : 'Statut: payée.',
+      `PDF: ${documentUrl}`,
+      `Espace parent: ${appUrl}`
+    ].join(' ')
+
+    const payload = await shareParentDocument({
+      institutionId: req.institutionId!,
+      actorId: req.user!.id,
+      req,
+      studentId: invoice.studentId,
+      studentName,
+      documentType: 'INVOICE',
+      entityId: invoice.id,
+      channel: req.body.channel,
+      title: `Facture ${invoice.number} — ${studentName}`,
+      body: `Facture de ${formatMoney(invoice.totalAmount, invoice.institution.currency)} disponible. Reste à payer : ${formatMoney(balance, invoice.institution.currency)}.`,
+      message,
+      documentUrl,
+      appUrl,
+      metadata: { invoiceNumber: invoice.number, totalAmount: invoice.totalAmount, paidAmount: invoice.paidAmount, balance }
+    })
+
+    res.json(payload)
   })
 )
 
@@ -265,5 +332,66 @@ paymentsRoutes.get(
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="recu-${req.params.id}.pdf"`)
     res.send(buffer)
+  })
+)
+
+paymentsRoutes.post(
+  '/:id/share-parent',
+  requireRoles(UserRole.CENTRAL_ADMIN, UserRole.DIRECTOR, UserRole.ADMINISTRATION, UserRole.ACCOUNTANT, UserRole.SECRETARIAT),
+  validate(parentShareBody),
+  asyncHandler(async (req, res) => {
+    const payment = await prisma.payment.findFirst({
+      where: { id: req.params.id, institutionId: req.institutionId! },
+      include: {
+        institution: { select: { slug: true, name: true, currency: true } },
+        invoice: { include: { student: { include: { classroom: true } } } }
+      }
+    })
+    if (!payment) throw notFound('Reçu introuvable')
+
+    const student = payment.invoice?.student ?? (payment.studentId
+      ? await prisma.student.findFirst({
+          where: {
+            id: payment.studentId,
+            institutionId: req.institutionId!,
+            establishmentId: getScopedEstablishmentId(req)
+          },
+          include: { classroom: true }
+        })
+      : null)
+    if (!student) throw notFound('Élève lié au reçu introuvable')
+
+    const studentName = `${student.firstName} ${student.lastName}`.trim()
+    const documentUrl = sharedDocumentUrl({
+      type: 'RECEIPT',
+      institutionId: req.institutionId!,
+      paymentId: payment.id
+    })
+    const appUrl = parentAppUrl(payment.institution.slug, 'paiements')
+    const message = [
+      `Bonjour, ${payment.institution.name} confirme le paiement de ${formatMoney(payment.amount, payment.currency)} pour ${studentName}.`,
+      payment.receiptNumber ? `Reçu: ${payment.receiptNumber}.` : '',
+      `PDF: ${documentUrl}`,
+      `Espace parent: ${appUrl}`
+    ].filter(Boolean).join(' ')
+
+    const payload = await shareParentDocument({
+      institutionId: req.institutionId!,
+      actorId: req.user!.id,
+      req,
+      studentId: student.id,
+      studentName,
+      documentType: 'RECEIPT',
+      entityId: payment.id,
+      channel: req.body.channel,
+      title: `Reçu ${payment.receiptNumber ?? ''} — ${studentName}`.trim(),
+      body: `Paiement de ${formatMoney(payment.amount, payment.currency)} enregistré pour ${studentName}.`,
+      message,
+      documentUrl,
+      appUrl,
+      metadata: { receiptNumber: payment.receiptNumber, amount: payment.amount, invoiceId: payment.invoiceId }
+    })
+
+    res.json(payload)
   })
 )

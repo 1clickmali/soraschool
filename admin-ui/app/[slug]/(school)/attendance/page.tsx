@@ -26,7 +26,6 @@ import {
   type Student,
   type Teacher,
   type AttendanceSlot,
-  type TeacherAttendanceRecord,
   type AbsenceJustification,
 } from "@/lib/school-api";
 import { cn } from "@/lib/utils";
@@ -105,7 +104,6 @@ export default function AttendancePage() {
   const [selectedSlot, setSelectedSlot] = useState<AttendanceSlot | null>(null);
 
   // Student attendance
-  const [students, setStudents] = useState<Student[]>([]);
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -142,7 +140,6 @@ export default function AttendancePage() {
       const existing = new Map(
         (attendanceRes.data?.records || []).map((r) => [r.studentId, r])
       );
-      setStudents(studs);
       setEntries(
         studs.map((s) => ({
           studentId: s.id,
@@ -267,7 +264,7 @@ export default function AttendancePage() {
       setSaveError(failed.error);
       return;
     }
-    setSaveSuccess("Présences des professeurs enregistrées !");
+    setSaveSuccess("Assiduité des enseignants enregistrée !");
     setTimeout(() => setSaveSuccess(null), 3000);
     loadTeacherEntries();
   };
@@ -329,7 +326,7 @@ export default function AttendancePage() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-6"
       >
-        <h1 className="text-2xl font-bold font-heading text-white">Présences</h1>
+        <h1 className="text-2xl font-bold font-heading text-white">Assiduité</h1>
         <p className="text-gray-400 text-sm mt-1">
           L&apos;appel est obligatoirement lié à un créneau de l&apos;emploi du temps
         </p>
@@ -609,10 +606,10 @@ export default function AttendancePage() {
           <div>
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-400" />
-              <h2 className="text-sm font-semibold text-white">Présences des professeurs</h2>
+              <h2 className="text-sm font-semibold text-white">Assiduité des enseignants</h2>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Présence journalière des enseignants — visible uniquement par l&apos;administration
+              Suivi journalier des enseignants — visible uniquement par l&apos;administration
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">

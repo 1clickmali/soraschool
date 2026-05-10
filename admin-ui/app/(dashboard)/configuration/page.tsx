@@ -155,7 +155,7 @@ export default function ConfigurationPage() {
     );
   }, [institutions, search]);
 
-  const canCreateBranches = Boolean(selected?.plan?.canCreateBranches || selected?.plan?.tier === "ENTERPRISE");
+  const canCreateBranches = Boolean(selected?.plan?.canCreateBranches);
   const portalUrl = selected ? getPortalUrl(selected.slug) : "";
   const primaryColor = form.primaryColor || "#064E3B";
   const secondaryColor = form.secondaryColor || "#F7F1DE";
@@ -440,7 +440,7 @@ export default function ConfigurationPage() {
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[520px]">
                       {[
                         { label: "Portail", value: `/${selected.slug}`, icon: Link2 },
-                        { label: "Plan", value: selected.plan?.monthlyPrice ? formatCurrency(selected.plan.monthlyPrice) : "—", icon: Crown },
+                        { label: "Plan/an", value: selected.plan?.annualPrice ? formatCurrency(selected.plan.annualPrice) : "—", icon: Crown },
                         { label: "Langues", value: `${(form.languages || []).length || 0}`, icon: Languages },
                         { label: "Sites", value: String(Math.max(establishments.length, selected.structure === "SINGLE_SCHOOL" ? 1 : establishments.length)), icon: Building2 },
                       ].map((stat) => (

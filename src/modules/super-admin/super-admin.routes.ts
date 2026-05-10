@@ -40,6 +40,7 @@ import {
   processExpiredTrials,
   processExpiredSubscriptions
 } from '../../lib/saas-billing'
+import { syncSubscriptionYearsForInvoicePayment } from '../../lib/subscription-year-access'
 import { seedCountryConfigs, COUNTRY_CONFIGS } from '../../lib/country-education'
 
 export const superAdminRoutes = Router()
@@ -50,7 +51,10 @@ const planSchema = z.object({
   body: z.object({
     name: z.string().min(2),
     code: z.string().min(2).optional(),
-    tier: z.nativeEnum(PlanTier),
+    tier: z.nativeEnum(PlanTier).refine((tier) => tier === PlanTier.BASIC || tier === PlanTier.PREMIUM, {
+      message: 'Seuls les plans Basic et Premium sont autorisés'
+    }),
+    installationFee: z.number().int().nonnegative().default(0),
     monthlyPrice: z.number().int().nonnegative().default(0),
     annualPrice: z.number().int().nonnegative().default(0),
     maxStudents: z.number().int().positive().optional(),
@@ -157,7 +161,7 @@ const createInstitutionSchema = z.object({
     activeAcademicYearName: z.string().optional(),
     currency: z.string().default('XOF'),
     planId: z.string(),
-    billingCycle: z.nativeEnum(BillingCycle).default(BillingCycle.MONTHLY),
+    billingCycle: z.nativeEnum(BillingCycle).default(BillingCycle.ANNUAL),
     schoolYears: z.number().int().positive().default(1),
     subscriptionStartsAt: z.coerce.date().optional(),
     subscriptionEndsAt: z.coerce.date().optional(),
@@ -220,6 +224,38 @@ function splitName(fullName: string) {
 function requireField(value: string | undefined, label: string) {
   if (!value?.trim()) throw badRequest(`${label} est requis`)
   return value.trim()
+}
+
+function resolveCountryConfig(value: string | undefined) {
+  if (!value) return undefined
+  const normalized = value.trim().toLowerCase()
+  return COUNTRY_CONFIGS.find((country) =>
+    country.code.toLowerCase() === normalized ||
+    country.name.toLowerCase() === normalized ||
+    country.nameFr.toLowerCase() === normalized
+  )
+}
+
+function subscriptionStatusFromInstitutionStatus(status: InstitutionStatus) {
+  if (status === InstitutionStatus.TRIAL) return SubscriptionStatus.TRIALING
+  if (status === InstitutionStatus.ACTIVE) return SubscriptionStatus.ACTIVE
+  if (status === InstitutionStatus.PENDING_PAYMENT) return SubscriptionStatus.PAST_DUE
+  if (status === InstitutionStatus.SUSPENDED) return SubscriptionStatus.SUSPENDED
+  if (status === InstitutionStatus.EXPIRED) return SubscriptionStatus.EXPIRED
+  return SubscriptionStatus.CANCELED
+}
+
+function buildAcademicYearWindow(yearName: string, country: ReturnType<typeof resolveCountryConfig>) {
+  const [startYearStr, endYearStr] = yearName.split('-')
+  const startYear = parseInt(startYearStr, 10) || new Date().getFullYear()
+  const endYear = parseInt(endYearStr, 10) || startYear + 1
+  const startMonth = country?.schoolYearStartMonth ?? 9
+  const endMonth = country?.schoolYearEndMonth ?? 6
+
+  return {
+    startsAt: new Date(startYear, Math.max(0, startMonth - 1), 1),
+    endsAt: new Date(endYear, endMonth, 0)
+  }
 }
 
 superAdminRoutes.get(
@@ -376,7 +412,7 @@ superAdminRoutes.get(
     const codes = DEFAULT_PLANS.map((plan) => plan.code)
     const plans = await prisma.plan.findMany({
       where: { code: { in: codes }, isActive: true },
-      orderBy: { monthlyPrice: 'asc' }
+      orderBy: { annualPrice: 'asc' }
     })
     res.json({ plans })
   })
@@ -431,19 +467,20 @@ superAdminRoutes.post(
   audit('CREATE', 'Institution'),
   asyncHandler(async (req, res) => {
     await ensureDefaultPlans()
-    const plan = await prisma.plan.findUnique({ where: { id: req.body.planId } })
-    if (!plan) throw badRequest('Plan introuvable')
+    const plan = await prisma.plan.findFirst({ where: { id: req.body.planId, isActive: true, code: { in: DEFAULT_PLANS.map((p) => p.code) } } })
+    if (!plan) throw badRequest('Plan introuvable ou désactivé')
 
-    const isEnterprise = plan.tier === PlanTier.ENTERPRISE
+    const isMultiSchool = plan.canCreateBranches
     const slug = buildSlug(req.body.name, req.body.slug)
-    const centralAdminName = isEnterprise ? requireField(req.body.centralAdminName ?? req.body.directorName, 'Le nom de l’administrateur central') : undefined
-    const centralAdminPhone = isEnterprise ? normalizePhone(requireField(req.body.centralAdminPhone ?? req.body.directorPhone, 'Le téléphone de l’administrateur central')) : undefined
-    const directorName = !isEnterprise ? requireField(req.body.directorName, 'Le nom du directeur') : undefined
-    const directorPhone = !isEnterprise ? normalizePhone(requireField(req.body.directorPhone, 'Le téléphone du directeur')) : undefined
+    const centralAdminName = isMultiSchool ? requireField(req.body.centralAdminName ?? req.body.directorName, "Le nom de l'administrateur central") : undefined
+    const centralAdminPhone = isMultiSchool ? normalizePhone(requireField(req.body.centralAdminPhone ?? req.body.directorPhone, "Le telephone de l'administrateur central")) : undefined
+    const directorName = !isMultiSchool ? requireField(req.body.directorName, 'Le nom du directeur') : undefined
+    const directorPhone = !isMultiSchool ? normalizePhone(requireField(req.body.directorPhone, 'Le telephone du directeur')) : undefined
     const centralAdmin = centralAdminName ? splitName(centralAdminName) : null
     const director = directorName ? splitName(directorName) : null
     const startsAt = req.body.subscriptionStartsAt ?? new Date()
     const schoolYears = req.body.schoolYears ?? 1
+    const countryConfig = resolveCountryConfig(req.body.country)
     const endsAt =
       req.body.subscriptionEndsAt ??
       (() => {
@@ -464,13 +501,14 @@ superAdminRoutes.post(
           name: req.body.name,
           slug,
           kind: req.body.kind,
-          structure: isEnterprise ? InstitutionStructure.CENTRAL_ADMINISTRATION : InstitutionStructure.SINGLE_SCHOOL,
+          structure: isMultiSchool ? InstitutionStructure.CENTRAL_ADMINISTRATION : InstitutionStructure.SINGLE_SCHOOL,
           trialEndsAt,
           status: req.body.status,
           logoUrl: req.body.logoUrl,
           sealUrl: req.body.sealUrl,
           signatureUrl: req.body.signatureUrl,
           country: req.body.country,
+          countryCode: countryConfig?.code ?? 'CI',
           city: req.body.city,
           district: req.body.district,
           address: req.body.address,
@@ -508,27 +546,25 @@ superAdminRoutes.post(
           startsAt,
           endsAt,
           trialEndsAt,
-          status: req.body.status === InstitutionStatus.TRIAL ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE
+          status: subscriptionStatusFromInstitutionStatus(req.body.status)
         }
       })
       createdSubscriptionId = sub.id
 
       // Auto-create an active academic year so the school can immediately create classes/students
       const yearName = req.body.activeAcademicYearName || '2025-2026'
-      const [startYearStr, endYearStr] = yearName.split('-')
-      const startYear = parseInt(startYearStr, 10) || new Date().getFullYear()
-      const endYear = parseInt(endYearStr, 10) || startYear + 1
+      const academicYearWindow = buildAcademicYearWindow(yearName, countryConfig)
       await tx.academicYear.create({
         data: {
           institutionId: created.id,
           name: yearName,
-          startsAt: new Date(`${startYear}-09-01`),
-          endsAt: new Date(`${endYear}-06-30`),
+          startsAt: academicYearWindow.startsAt,
+          endsAt: academicYearWindow.endsAt,
           isActive: true
         }
       })
 
-      if (isEnterprise && centralAdmin && centralAdminPhone) {
+      if (isMultiSchool && centralAdmin && centralAdminPhone) {
         await tx.allowedPhone.create({
           data: {
             institutionId: created.id,
@@ -619,21 +655,26 @@ superAdminRoutes.post(
       return created
     })
 
-    // Auto-generate SaaS invoice for non-trial institutions
+    // Auto-generate SaaS invoice for non-trial institutions (includes installation fee on first invoice)
     if (req.body.status !== InstitutionStatus.TRIAL && createdSubscriptionId) {
       const discountPercent = computeDiscount(plan, schoolYears, req.body.billingCycle)
-      const amount = computeAmount(plan, req.body.billingCycle, schoolYears, discountPercent)
-      if (amount > 0) {
+      const subscriptionAmount = computeAmount(plan, req.body.billingCycle, schoolYears, discountPercent)
+      const installationFee = plan.installationFee ?? 0
+      const totalAmount = subscriptionAmount + installationFee
+      if (totalAmount > 0) {
         const dueDate = new Date()
         dueDate.setDate(dueDate.getDate() + 15)
         await createSaaSInvoice({
           institutionId: institution.id,
           subscriptionId: createdSubscriptionId,
           planId: plan.id,
-          amount,
-          currency: req.body.currency,
+          amount: subscriptionAmount,
+          installationFee,
+          currency: req.body.currency || 'XOF',
           dueDate,
-          notes: `Abonnement ${plan.name}`,
+          notes: installationFee > 0
+            ? `Frais d'installation ${plan.name} : ${installationFee.toLocaleString('fr-FR')} XOF + Abonnement annuel : ${subscriptionAmount.toLocaleString('fr-FR')} XOF`
+            : `Abonnement ${plan.name}`,
         })
       }
     }
@@ -690,9 +731,7 @@ superAdminRoutes.patch(
           discountPercent: computeDiscount(plan, schoolYears, req.body.billingCycle),
           startsAt,
           endsAt,
-          status: newStatus === InstitutionStatus.TRIAL ? SubscriptionStatus.TRIALING
-            : newStatus === InstitutionStatus.ACTIVE ? SubscriptionStatus.ACTIVE
-            : SubscriptionStatus.CANCELED
+          status: subscriptionStatusFromInstitutionStatus(newStatus)
         }
       })
     } else {
@@ -706,7 +745,7 @@ superAdminRoutes.patch(
           discountPercent: computeDiscount(plan, schoolYears, req.body.billingCycle),
           startsAt,
           endsAt,
-          status: newStatus === InstitutionStatus.ACTIVE ? SubscriptionStatus.ACTIVE : SubscriptionStatus.TRIALING
+          status: subscriptionStatusFromInstitutionStatus(newStatus)
         }
       })
     }
@@ -918,7 +957,7 @@ superAdminRoutes.post(
     const [updatedInvoice] = await prisma.$transaction([
       prisma.saaSInvoice.update({
         where: { id: invoice.id },
-        data: { status: 'PAID', paidAt: new Date() }
+        data: { status: 'PAID', paidAmount: invoice.amount, paidAt: new Date() }
       }),
       prisma.saaSPayment.create({
         data: {
@@ -944,6 +983,12 @@ superAdminRoutes.post(
           })]
         : [])
     ])
+    await syncSubscriptionYearsForInvoicePayment({
+      institutionId: invoice.institutionId,
+      invoiceNumber: invoice.number,
+      paidAmount: invoice.amount,
+      actorId: req.user!.id
+    })
     res.json({ invoice: updatedInvoice })
   })
 )
@@ -998,6 +1043,12 @@ superAdminRoutes.post(
           })]
         : [])
     ])
+    await syncSubscriptionYearsForInvoicePayment({
+      institutionId: invoice.institutionId,
+      invoiceNumber: invoice.number,
+      paidAmount: newTotal,
+      actorId: req.user!.id
+    })
     res.json({ invoice: updatedInvoice, paidAmount: newTotal, remaining: invoice.amount - newTotal })
   })
 )

@@ -1,5 +1,6 @@
 import { getAccessToken, getRefreshToken, setTokens, removeTokens } from "./auth";
 import { getApiBaseUrl } from "./api-url";
+import { idempotencyKeyFor, idempotencyKeyForForm } from "./idempotency";
 import type {
   CalendarEvent,
   CalendarFilters,
@@ -37,6 +38,7 @@ interface BackendUser {
   establishmentId?: string | null;
   avatarUrl?: string | null;
   preferredLanguage?: string;
+  themePreference?: ThemePreference;
 }
 
 interface BackendInstitution {
@@ -81,12 +83,14 @@ interface BackendPlan {
   name: string;
   code?: string;
   tier: Plan["tier"];
+  installationFee?: number;
   monthlyPrice: number;
   annualPrice: number;
   maxStudents: number | null;
   maxTeachers: number | null;
   maxEstablishments?: number;
   canCreateBranches?: boolean;
+  isActive?: boolean;
   features?: unknown;
   createdAt: string;
 }
@@ -148,8 +152,9 @@ function normalizeFeatures(features: unknown): string[] {
 function normalizePlan(plan: BackendPlan): Plan {
   return {
     ...plan,
-    maxStudents: plan.maxStudents ?? Number.POSITIVE_INFINITY,
-    maxTeachers: plan.maxTeachers ?? Number.POSITIVE_INFINITY,
+    installationFee: plan.installationFee ?? 0,
+    maxStudents: plan.maxStudents ?? null,
+    maxTeachers: plan.maxTeachers ?? null,
     features: normalizeFeatures(plan.features),
   };
 }
@@ -227,6 +232,8 @@ export async function apiRequest<T>(
     "Content-Type": "application/json",
     ...headers,
   };
+  const idemKey = idempotencyKeyFor(method, endpoint, body);
+  if (idemKey && !requestHeaders["Idempotency-Key"]) requestHeaders["Idempotency-Key"] = idemKey;
 
   if (!skipAuth) {
     const token = getAccessToken();
@@ -314,10 +321,14 @@ export async function downloadProtectedFile(endpoint: string, filename: string):
 
 export async function uploadProtectedFile<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
   const token = getAccessToken();
+  const idemKey = idempotencyKeyForForm("POST", endpoint, formData);
   try {
     const res = await fetch(apiUrl(endpoint), {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(idemKey ? { "Idempotency-Key": idemKey } : {}),
+      },
       body: formData,
     });
 
@@ -355,6 +366,8 @@ export interface PlatformBranding {
   accentColor: string;
 }
 
+export type ThemePreference = "SYSTEM" | "LIGHT" | "DARK";
+
 export const platformApi = {
   branding: () => api.get<{ branding: PlatformBranding }>("/api/platform/branding", { skipAuth: true }),
 };
@@ -380,6 +393,9 @@ export const authApi = {
 
   refresh: () =>
     api.post<{ accessToken: string; refreshToken: string }>("/api/auth/refresh"),
+
+  updateTheme: (themePreference: ThemePreference) =>
+    api.patch<{ user: Pick<UserProfile, "id" | "themePreference"> }>("/api/auth/theme", { themePreference }),
 };
 
 export const superAdminApi = {
@@ -467,7 +483,13 @@ export const superAdminApi = {
     api.get<{ admins: Array<{ id: string; firstName: string; lastName: string; phone: string; email?: string; createdAt: string; lastLoginAt?: string }> }>("/api/super-admin/super-admins"),
   createSuperAdmin: (data: CreateSuperAdminInput) =>
     api.post<{ user: UserProfile }>("/api/super-admin/super-admins", data),
-  syncDefaultPlans: () => api.post<{ plans: BackendPlan[] }>("/api/super-admin/plans/sync-defaults"),
+  syncDefaultPlans: async () => {
+    const response = await api.post<{ plans: BackendPlan[] }>("/api/super-admin/plans/sync-defaults");
+    return {
+      ...response,
+      data: response.data ? { plans: response.data.plans.map(normalizePlan) } : null,
+    };
+  },
   platformBranding: () => api.get<{ branding: PlatformBranding }>("/api/super-admin/platform-branding"),
   updatePlatformBranding: (data: Partial<PlatformBranding>) =>
     api.patch<{ branding: PlatformBranding }>("/api/super-admin/platform-branding", data),
@@ -524,6 +546,7 @@ export interface UserProfile {
   establishmentId?: string;
   avatarUrl?: string;
   preferredLanguage?: string;
+  themePreference?: ThemePreference;
 }
 
 export interface DashboardData {
@@ -546,12 +569,14 @@ export interface Plan {
   name: string;
   code?: string;
   tier: "BASIC" | "PREMIUM" | "ENTERPRISE";
+  installationFee: number;
   monthlyPrice: number;
   annualPrice: number;
-  maxStudents: number;
-  maxTeachers: number;
+  maxStudents: number | null;
+  maxTeachers: number | null;
   maxEstablishments?: number;
   canCreateBranches?: boolean;
+  isActive?: boolean;
   features: string[];
   createdAt: string;
 }
@@ -596,10 +621,13 @@ export interface CreatePlanInput {
   name: string;
   code?: string;
   tier: Plan["tier"];
-  monthlyPrice: number;
+  installationFee?: number;
+  monthlyPrice?: number;
   annualPrice: number;
-  maxStudents: number;
-  maxTeachers: number;
+  maxStudents?: number;
+  maxTeachers?: number;
+  maxEstablishments?: number;
+  canCreateBranches?: boolean;
   features: string[];
 }
 

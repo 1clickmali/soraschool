@@ -1,57 +1,53 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Bell,
   BookOpen,
+  Bell,
   CalendarDays,
   CalendarOff,
   ChevronLeft,
-  ChevronRight,
-  FileText,
   GraduationCap,
   Home,
   LogOut,
   MessageSquareWarning,
   MoreHorizontal,
   ReceiptText,
-  Settings,
-  Shield,
-  User,
   X,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolInstitution, type SchoolUser } from "@/lib/school-api";
-import { useBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 /* ── Nav items ─────────────────────────────────────────── */
 const mainNavItems = (slug: string) => [
   { label: "Accueil",  href: `/${slug}/parent/dashboard`,  icon: Home,       color: "text-amber-400"  },
-  { label: "Enfants",  href: `/${slug}/parent/enfants`,    icon: GraduationCap, color: "text-emerald-400" },
-  { label: "Notes",    href: `/${slug}/parent/bulletins`,  icon: BookOpen,   color: "text-blue-400"   },
-  { label: "Paiements",href: `/${slug}/parent/paiements`,  icon: ReceiptText,color: "text-purple-400" },
+  { label: "Apprenants", href: `/${slug}/parent/enfants`,  icon: GraduationCap, color: "text-emerald-400" },
+  { label: "Évaluations", href: `/${slug}/parent/bulletins`, icon: BookOpen, color: "text-blue-400" },
+  { label: "Finance", href: `/${slug}/parent/paiements`,   icon: ReceiptText,color: "text-purple-400" },
   { label: "Plus",     href: "",                           icon: MoreHorizontal, color: "text-gray-400" },
 ];
 
 const moreNavItems = (slug: string) => [
-  { label: "Calendrier",      href: `/${slug}/parent/calendrier`,  icon: CalendarDays,         color: "from-blue-500 to-cyan-500"    },
-  { label: "Vacances",        href: `/${slug}/parent/conges`,      icon: CalendarOff,          color: "from-amber-500 to-orange-500" },
-  { label: "Plaintes",        href: `/${slug}/parent/plaintes`,    icon: MessageSquareWarning, color: "from-red-500 to-rose-500"     },
+  { label: "Calendrier scolaire", href: `/${slug}/parent/calendrier`, icon: CalendarDays, color: "from-blue-500 to-cyan-500" },
+  { label: "Notifications", href: `/${slug}/parent/notifications`, icon: Bell, color: "from-emerald-500 to-teal-500" },
+  { label: "Congés", href: `/${slug}/parent/conges`, icon: CalendarOff, color: "from-amber-500 to-orange-500" },
+  { label: "Demandes", href: `/${slug}/parent/plaintes`, icon: MessageSquareWarning, color: "from-red-500 to-rose-500" },
 ];
 
 const sidebarItems = (slug: string) => [
   { label: "Accueil",          href: `/${slug}/parent/dashboard`,  icon: Home                 },
-  { label: "Mes enfants",      href: `/${slug}/parent/enfants`,    icon: GraduationCap        },
-  { label: "Calendrier",       href: `/${slug}/parent/calendrier`, icon: CalendarDays         },
-  { label: "Vacances / Congés",href: `/${slug}/parent/conges`,     icon: CalendarOff          },
-  { label: "Bulletins & notes",href: `/${slug}/parent/bulletins`,  icon: BookOpen             },
-  { label: "Reçus de paiement",href: `/${slug}/parent/paiements`,  icon: ReceiptText          },
-  { label: "Plaintes",         href: `/${slug}/parent/plaintes`,   icon: MessageSquareWarning },
+  { label: "Mes apprenants",   href: `/${slug}/parent/enfants`,    icon: GraduationCap        },
+  { label: "Calendrier scolaire", href: `/${slug}/parent/calendrier`, icon: CalendarDays      },
+  { label: "Notifications",    href: `/${slug}/parent/notifications`, icon: Bell              },
+  { label: "Congés",           href: `/${slug}/parent/conges`,     icon: CalendarOff          },
+  { label: "Évaluations",      href: `/${slug}/parent/bulletins`,  icon: BookOpen             },
+  { label: "Finance",          href: `/${slug}/parent/paiements`,  icon: ReceiptText          },
+  { label: "Demandes",         href: `/${slug}/parent/plaintes`,   icon: MessageSquareWarning },
 ];
 
 function getInitials(firstName?: string, lastName?: string) {
@@ -100,7 +96,6 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const { branding } = useBranding();
 
   useEffect(() => {
     if (!isSchoolAuthenticated()) { router.replace(`/${slug}/login`); return; }
@@ -151,7 +146,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
   /* ── Desktop sidebar ──────────────────────────────────── */
   const DesktopSidebar = () => (
     <aside className={cn(
-      "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/[0.06] bg-[#080d19]/98 backdrop-blur-xl transition-all duration-300 lg:flex",
+      "sora-academy-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/[0.06] bg-[#080d19]/98 backdrop-blur-xl transition-all duration-300 lg:flex",
       collapsed ? "w-20" : "w-72"
     )}>
       {/* Ambient glow */}
@@ -234,6 +229,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
             </motion.div>
           )}
         </AnimatePresence>
+        {!collapsed && <div className="mb-2"><LanguageSwitcher /></div>}
         <button onClick={handleLogout}
           className={cn("flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-gray-500 transition hover:bg-red-500/10 hover:text-red-400",
             collapsed && "justify-center"
@@ -262,7 +258,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
             key="drawer"
             initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[#080d19] lg:hidden"
+            className="sora-academy-sidebar fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[#080d19] lg:hidden"
           >
             {/* Glow */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-amber-500/10 to-transparent" />
@@ -342,7 +338,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
 
   /* ── Mobile top header ────────────────────────────────── */
   const MobileHeader = () => (
-    <header className="mobile-header lg:hidden">
+    <header className="sora-academy-header mobile-header lg:hidden">
       <div className="flex h-full items-center gap-3 px-4">
         {/* Avatar / menu toggle */}
         <button onClick={() => setMobileOpen(true)}
@@ -360,14 +356,8 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
             {getGreeting()}, {firstName}
           </p>
         </div>
+        <LanguageSwitcher compact />
 
-        {/* Right actions */}
-        <div className="flex items-center gap-2">
-          <button className="relative rounded-2xl p-2 text-gray-400 hover:bg-white/[0.06] hover:text-white touch-feedback">
-            <Bell className="h-5 w-5" />
-            <span className="notif-dot" />
-          </button>
-        </div>
       </div>
     </header>
   );
@@ -505,7 +495,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
   );
 
   return (
-    <div className="min-h-screen bg-[#080d1a]">
+    <div className="sora-academy-shell min-h-screen bg-[#080d1a]">
       {/* Desktop sidebar */}
       <DesktopSidebar />
 

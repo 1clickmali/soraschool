@@ -12,7 +12,6 @@ import {
   LayoutGrid,
   Calendar,
   CalendarDays,
-  CalendarOff,
   CheckSquare,
   Star,
   Shield,
@@ -30,13 +29,28 @@ import {
   CreditCard,
   Clock,
   BarChart2,
+  Globe,
+  CalendarCheck,
+  AlertTriangle,
+  Lock,
+  RefreshCw,
+  Users,
+  QrCode,
+  Briefcase,
+  FileSignature,
+  UserCog,
+  WalletCards,
+  ClipboardCheck,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
-import { schoolAuthApi, type SchoolUser, type SchoolInstitution } from "@/lib/school-api";
+import { schoolAuthApi, type SchoolUser, type SchoolInstitution, schoolApiRequest } from "@/lib/school-api";
 import { schoolApi } from "@/lib/school-api";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useUiLanguage, uiText, type UiLanguage } from "@/lib/ui-language";
 
 interface NavItem {
+  id?: string;
   label: string;
   href?: string;
   icon?: React.ElementType;
@@ -45,57 +59,114 @@ interface NavItem {
   roles?: string[];
 }
 
-function buildNavItems(slug: string): NavItem[] {
+// Routes always accessible even when school year is expired
+const YEAR_EXEMPT_PATHS = [
+  "/rapports",
+  "/abonnement",
+  "/abonnement-annees",
+  "/notifications",
+];
+
+function isYearExemptPath(pathname: string): boolean {
+  return YEAR_EXEMPT_PATHS.some((p) => pathname.includes(p));
+}
+
+function buildNavItems(slug: string, language: UiLanguage): NavItem[] {
+  const t = (fr: string, en: string) => uiText(language, fr, en);
   return [
-    { label: "Tableau de bord", href: `/${slug}/dashboard`, icon: LayoutDashboard },
-    { label: "Mes établissements", href: `/${slug}/etablissements`, icon: Building2, roles: ["CENTRAL_ADMIN"] },
-    { separator: true, label: "", sectionLabel: "ACADÉMIQUE" },
-    { label: "Apprenants", href: `/${slug}/students`, icon: GraduationCap },
+    { id: "dashboard", label: t("Tableau de bord", "Dashboard"), href: `/${slug}/dashboard`, icon: LayoutDashboard },
+    { id: "campuses", label: t("Mes établissements", "My campuses"), href: `/${slug}/etablissements`, icon: Building2, roles: ["CENTRAL_ADMIN"] },
+    { separator: true, label: "", sectionLabel: t("ACADÉMIQUE", "ACADEMICS") },
+    { id: "students", label: t("Apprenants", "Learners"), href: `/${slug}/students`, icon: GraduationCap },
     {
-      label: "Enseignants", href: `/${slug}/teachers`, icon: BookOpen,
+      id: "teachers", label: t("Enseignants", "Teachers"), href: `/${slug}/teachers`, icon: BookOpen,
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
-    { label: "Structure académique", href: `/${slug}/classes`, icon: LayoutGrid },
+    { id: "structure", label: t("Structure académique", "Academic structure"), href: `/${slug}/classes`, icon: LayoutGrid },
     {
-      label: "Programmes & matières", href: `/${slug}/subjects`, icon: Library,
+      id: "programs", label: t("Programmes & matières", "Programs & subjects"), href: `/${slug}/subjects`, icon: Library,
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
-    { label: "Emploi du temps", href: `/${slug}/schedule`, icon: Calendar },
-    { label: "Calendrier", href: `/${slug}/calendar`, icon: CalendarDays },
-    { label: "Vacances / Congés", href: `/${slug}/holidays`, icon: CalendarOff },
-    { label: "Assiduité", href: `/${slug}/attendance`, icon: CheckSquare },
-    { label: "Évaluations", href: `/${slug}/grades`, icon: Star },
+    { id: "schedule", label: t("Emploi du temps", "Timetable"), href: `/${slug}/schedule`, icon: Calendar },
+    { id: "calendar", label: t("Calendrier scolaire", "School calendar"), href: `/${slug}/calendar`, icon: CalendarDays },
+    { id: "attendance", label: t("Assiduité", "Attendance"), href: `/${slug}/attendance`, icon: CheckSquare },
+    { id: "grades", label: t("Évaluations", "Assessments"), href: `/${slug}/grades`, icon: Star },
     {
-      label: "Vie scolaire", href: `/${slug}/discipline`, icon: Shield,
+      id: "discipline", label: t("Vie scolaire", "Student life"), href: `/${slug}/discipline`, icon: Shield,
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
-    { separator: true, label: "", sectionLabel: "FINANCE" },
+    { separator: true, label: "", sectionLabel: t("FINANCE", "FINANCE") },
     {
-      label: "Finance scolaire", href: `/${slug}/payments`, icon: DollarSign,
+      id: "finance", label: t("Finance", "Finance"), href: `/${slug}/payments`, icon: DollarSign,
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
     {
-      label: "Stock & fournitures", href: `/${slug}/shop`, icon: ShoppingBag,
+      id: "budget", label: t("Budget", "Budget"), href: `/${slug}/budget`, icon: WalletCards,
+      roles: ["DIRECTOR", "ACCOUNTANT", "ADMINISTRATION"],
+    },
+    {
+      id: "stock", label: t("Stock & fournitures", "Stock & supplies"), href: `/${slug}/shop`, icon: ShoppingBag,
       roles: ["DIRECTOR", "ADMINISTRATION", "ACCOUNTANT", "STOCK_MANAGER", "SECRETARIAT"],
     },
-    { separator: true, label: "", sectionLabel: "SERVICES" },
-    { label: "Documents officiels", href: `/${slug}/documents`, icon: FileText },
-    { label: "Communication", href: `/${slug}/messages`, icon: MessageSquare },
+    { separator: true, label: "", sectionLabel: t("SERVICES", "SERVICES") },
+    { id: "documents", label: t("Documents officiels", "Official documents"), href: `/${slug}/documents`, icon: FileText },
+    { id: "communication", label: t("Communication", "Communication"), href: `/${slug}/messages`, icon: MessageSquare },
+    { separator: true, label: "", sectionLabel: t("RH & PERSONNEL", "HR & STAFF") },
     {
-      label: "Pointage enseignants", href: `/${slug}/teacher-badges`, icon: Clock,
+      id: "staff", label: t("Personnel", "Staff"), href: `/${slug}/personnel`, icon: Users,
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
-    { separator: true, label: "", sectionLabel: "ADMIN" },
     {
-      label: "Rapports & exports", href: `/${slug}/rapports`, icon: BarChart2,
-      roles: ["DIRECTOR", "CENTRAL_ADMIN", "ACCOUNTANT", "SECRETARIAT", "ADMINISTRATION"],
+      id: "staff-attendance", label: t("Pointage du personnel", "Staff check-in"), href: `/${slug}/pointage-personnel`, icon: Clock,
+      roles: ["DIRECTOR", "ADMINISTRATION", "SECRETARIAT", "ACCOUNTANT"],
     },
     {
-      label: "Mon abonnement", href: `/${slug}/abonnement`, icon: CreditCard,
+      id: "tablet-checkin", label: t("Pointage tablette", "Tablet check-in"), href: `/${slug}/pointage-tablette`, icon: QrCode,
       roles: ["DIRECTOR"],
     },
     {
-      label: "Configuration", href: `/${slug}/settings`, icon: Settings,
+      id: "justifications", label: t("Justifications RH", "HR justifications"), href: `/${slug}/justifications-personnel`, icon: AlertTriangle,
+      roles: ["DIRECTOR", "ADMINISTRATION"],
+    },
+    {
+      id: "payroll", label: t("Paie du personnel", "Staff payroll"), href: `/${slug}/paie-personnel`, icon: Briefcase,
+      roles: ["DIRECTOR", "ACCOUNTANT"],
+    },
+    {
+      id: "contracts", label: t("Contrats du personnel", "Staff contracts"), href: `/${slug}/contrats-personnel`, icon: FileSignature,
+      roles: ["DIRECTOR", "ADMINISTRATION", "ACCOUNTANT"],
+    },
+    {
+      id: "roles", label: t("Rôles & permissions", "Roles & permissions"), href: `/${slug}/roles-personnel`, icon: UserCog,
+      roles: ["DIRECTOR"],
+    },
+    { separator: true, label: "", sectionLabel: t("ADMIN", "ADMIN") },
+    {
+      id: "reports", label: t("Rapports & statistiques", "Reports & analytics"), href: `/${slug}/rapports`, icon: BarChart2,
+      roles: ["DIRECTOR", "CENTRAL_ADMIN", "ACCOUNTANT", "SECRETARIAT", "ADMINISTRATION", "TEACHER"],
+    },
+    {
+      id: "admissions", label: t("Admissions & décisions", "Admissions & decisions"), href: `/${slug}/decisions-annuelles`, icon: CalendarCheck,
+      roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION", "SECRETARIAT"],
+    },
+    {
+      id: "enrollment-review", label: t("Inscriptions à valider", "Enrollment review"), href: `/${slug}/inscriptions-validation`, icon: ClipboardCheck,
+      roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"],
+    },
+    {
+      id: "year-subscription", label: t("Abonnement scolaire", "School-year subscription"), href: `/${slug}/abonnement-annees`, icon: CalendarDays,
+      roles: ["DIRECTOR", "CENTRAL_ADMIN"],
+    },
+    {
+      id: "country-config", label: t("Pays & programmes", "Countries & programs"), href: `/${slug}/config-pays`, icon: Globe,
+      roles: ["SUPER_ADMIN"],
+    },
+    {
+      id: "subscription", label: t("Mon abonnement", "My subscription"), href: `/${slug}/abonnement`, icon: CreditCard,
+      roles: ["DIRECTOR"],
+    },
+    {
+      id: "settings", label: t("Configuration", "Settings"), href: `/${slug}/settings`, icon: Settings,
       roles: ["DIRECTOR", "ADMINISTRATION"],
     },
   ];
@@ -104,10 +175,10 @@ function buildNavItems(slug: string): NavItem[] {
 function filterNavByRole(items: NavItem[], role: string): NavItem[] {
   const adminRoles = ["CENTRAL_ADMIN", "DIRECTOR", "ADMINISTRATION"];
   const teacherItems = [
-    "Tableau de bord", "Apprenants", "Structure académique", "Calendrier", "Vacances / Congés", "Assiduité", "Évaluations", "Communication",
+    "dashboard", "students", "structure", "calendar", "attendance", "grades", "reports", "communication",
   ];
   const parentItems = [
-    "Tableau de bord", "Calendrier", "Vacances / Congés", "Communication",
+    "dashboard", "calendar", "communication",
   ];
 
   if (adminRoles.includes(role)) return items.filter((item) => !item.roles || item.roles.includes(role));
@@ -116,7 +187,7 @@ function filterNavByRole(items: NavItem[], role: string): NavItem[] {
     return items.filter((item) => {
       if (item.separator) return true;
       if (!item.label) return true;
-      return teacherItems.includes(item.label);
+      return item.id ? teacherItems.includes(item.id) : false;
     });
   }
 
@@ -124,7 +195,7 @@ function filterNavByRole(items: NavItem[], role: string): NavItem[] {
     return items.filter((item) => {
       if (item.separator) return true;
       if (!item.label) return true;
-      return parentItems.includes(item.label);
+      return item.id ? parentItems.includes(item.id) : false;
     });
   }
 
@@ -148,6 +219,8 @@ function RoleBadge({ role }: { role: string }) {
     TEACHER: "Enseignant",
     PARENT: "Parent",
     SUPER_ADMIN: "Super Admin",
+    ACCOUNTANT: "Comptable",
+    SECRETARIAT: "Secrétariat",
   };
   const colors: Record<string, string> = {
     DIRECTOR: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
@@ -156,6 +229,8 @@ function RoleBadge({ role }: { role: string }) {
     TEACHER: "bg-purple-500/15 text-purple-400 border-purple-500/25",
     PARENT: "bg-amber-500/15 text-amber-400 border-amber-500/25",
     SUPER_ADMIN: "bg-red-500/15 text-red-400 border-red-500/25",
+    ACCOUNTANT: "bg-teal-500/15 text-teal-400 border-teal-500/25",
+    SECRETARIAT: "bg-sky-500/15 text-sky-400 border-sky-500/25",
   };
   return (
     <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", colors[role] || "bg-gray-500/15 text-gray-400 border-gray-500/25")}>
@@ -164,11 +239,20 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+interface SubscriptionYearSummary {
+  total: number;
+  isCurrentlyActive: boolean;
+  activeYear: { id: string; schoolYearLabel: string; yearLabel?: string; endsAt: string } | null;
+  nextYear: { id: string; schoolYearLabel: string; yearLabel?: string; status: string } | null;
+  expiredYear: { id: string; schoolYearLabel: string; yearLabel?: string; endsAt: string } | null;
+}
+
 export default function SchoolLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
   const slug = params.slug as string;
+  const { language } = useUiLanguage();
 
   const [user, setUser] = useState<SchoolUser | null>(null);
   const [institution, setInstitution] = useState<SchoolInstitution | null>(null);
@@ -176,6 +260,8 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [yearExpired, setYearExpired] = useState(false);
+  const [expiredLabel, setExpiredLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSchoolAuthenticated()) {
@@ -183,7 +269,6 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
       return;
     }
 
-    // Fetch user profile
     schoolAuthApi.me().then(({ data }) => {
       if (data) {
         if (data.role === "PARENT") {
@@ -198,16 +283,28 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
       setAuthChecked(true);
     });
 
-    // Fetch institution info
-    schoolApi.settings().then(({ data: settingsData }) => {
-      // Try to get institution from settings or slug lookup
-    });
-
     schoolAuthApi.getInstitutionBySlug(slug).then(({ data }) => {
-      if (data?.institution) setInstitution(data.institution);
+      if (data?.institution) {
+        setInstitution(data.institution);
+        if (["EXPIRED", "PENDING_PAYMENT"].includes(data.institution.status)) {
+          setYearExpired(true);
+          setExpiredLabel(data.institution.activeAcademicYearName ?? null);
+        }
+      }
     });
 
-    // Poll unread notifications every 60s
+    // Check if school year is expired
+    schoolApiRequest<{ summary: SubscriptionYearSummary }>("/api/subscription-years/summary").then((res) => {
+      if (!res.error && res.data) {
+        const { summary } = res.data;
+        // Has subscription years but none currently active → blocked
+        if (summary.total > 0 && !summary.isCurrentlyActive) {
+          setYearExpired(true);
+          setExpiredLabel(summary.expiredYear?.schoolYearLabel ?? summary.expiredYear?.yearLabel ?? null);
+        }
+      }
+    });
+
     const loadUnread = () =>
       schoolApi.notifications(true).then(({ data }) => {
         if (data) setUnreadCount(data.unreadCount);
@@ -240,21 +337,28 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  const allNavItems = buildNavItems(slug);
+  const allNavItems = buildNavItems(slug, language);
   const navItems = filterNavByRole(allNavItems, user.role);
   const schoolName = institution?.name || slug.toUpperCase();
   const schoolInitials = institution?.name ? getInitials(institution.name) : slug.slice(0, 2).toUpperCase();
 
   const SidebarContent = () => (
     <>
-      {/* Top gradient */}
       <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none" />
 
       {/* Logo / School name */}
       <div className="relative flex items-center h-16 px-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.3)]">
-            <span className="text-white font-bold text-xs">{schoolInitials}</span>
+          <div className={cn(
+            "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.3)]",
+            yearExpired
+              ? "bg-gradient-to-br from-amber-600 to-amber-800"
+              : "bg-gradient-to-br from-emerald-500 to-emerald-700"
+          )}>
+            {yearExpired
+              ? <Lock className="w-4 h-4 text-white" />
+              : <span className="text-white font-bold text-xs">{schoolInitials}</span>
+            }
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -268,8 +372,8 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
                 <p className="text-white font-bold font-heading text-xs leading-none truncate">
                   {schoolName}
                 </p>
-                <p className="text-emerald-500/70 text-xs mt-0.5">
-                  {user?.role === "CENTRAL_ADMIN" ? "Administration Centrale" : "Portail École"}
+                <p className={cn("text-xs mt-0.5", yearExpired ? "text-amber-500/80" : "text-emerald-500/70")}>
+                  {yearExpired ? "Accès restreint" : user?.role === "CENTRAL_ADMIN" ? "Administration Centrale" : "Portail École"}
                 </p>
               </motion.div>
             )}
@@ -285,7 +389,6 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
           </motion.div>
         </button>
 
-        {/* Mobile close */}
         <button
           onClick={() => setMobileOpen(false)}
           className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:text-gray-300"
@@ -293,6 +396,26 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Year-expired mini banner in sidebar */}
+      {yearExpired && !collapsed && (
+        <div className="mx-3 mt-3 mb-1 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <div className="flex items-center gap-2 mb-1">
+            <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="text-xs font-semibold text-amber-300">Accès restreint</span>
+          </div>
+          <p className="text-[10px] text-amber-400/80 leading-tight">
+            {expiredLabel ? `Année ${expiredLabel} terminée.` : "Année scolaire terminée."}
+            {" "}Renouvelez pour débloquer.
+          </p>
+          <Link
+            href={`/${slug}/abonnement-annees`}
+            className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-amber-300 hover:text-amber-200 transition-colors"
+          >
+            <RefreshCw className="w-2.5 h-2.5" /> Renouveler maintenant
+          </Link>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden scrollbar-none">
@@ -316,13 +439,51 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
             pathname === item.href ||
             (item.href !== `/${slug}/dashboard` && pathname.startsWith(item.href));
 
+          const isBlocked = yearExpired && !isYearExemptPath(item.href);
+
+          if (isBlocked) {
+            return (
+              <div
+                key={item.href}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "relative flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl text-sm cursor-not-allowed select-none group",
+                  "text-gray-700 opacity-40"
+                )}
+              >
+                <div className="relative">
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {!collapsed && (
+                    <Lock className="absolute -right-1 -bottom-1 w-2 h-2 text-amber-500" />
+                  )}
+                </div>
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -5 }}
+                      transition={{ duration: 0.15 }}
+                      className="font-medium truncate flex-1 line-through decoration-amber-600/40"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                {collapsed && (
+                  <div className="absolute left-full ml-3 px-3 py-1.5 bg-soraDark border border-amber-500/20 rounded-lg text-xs text-amber-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-xl z-50">
+                    🔒 {item.label} — Année scolaire expirée
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => {
-                setMobileOpen(false);
-              }}
+              onClick={() => setMobileOpen(false)}
               className={cn(
                 "relative flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group",
                 isActive
@@ -363,7 +524,6 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
                 )}
               </AnimatePresence>
 
-              {/* Tooltip when collapsed */}
               {collapsed && (
                 <div className="absolute left-full ml-3 px-3 py-1.5 bg-soraDark border border-white/10 rounded-lg text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-xl z-50">
                   {item.label}
@@ -423,18 +583,18 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
   );
 
   return (
-    <div className="flex min-h-screen bg-[#080d1a] lg:h-screen lg:overflow-hidden">
+    <div className="sora-academy-shell flex min-h-screen bg-[#080d1a] lg:h-screen lg:overflow-hidden">
 
-      {/* ── Desktop Sidebar ──────────────────────────────── */}
+      {/* Desktop Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 72 : 260 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="relative hidden lg:flex flex-col h-screen bg-soraSidebar border-r border-white/[0.06] overflow-hidden flex-shrink-0"
+        className="sora-academy-sidebar relative hidden lg:flex flex-col h-screen bg-soraSidebar border-r border-white/[0.06] overflow-hidden flex-shrink-0"
       >
         <SidebarContent />
       </motion.aside>
 
-      {/* ── Mobile Sidebar drawer ─────────────────────────── */}
+      {/* Mobile Sidebar drawer */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -449,7 +609,7 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
               key="school-drawer"
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed left-0 top-0 bottom-0 w-72 flex flex-col bg-soraSidebar z-50 lg:hidden shadow-2xl"
+              className="sora-academy-sidebar fixed left-0 top-0 bottom-0 w-72 flex flex-col bg-soraSidebar z-50 lg:hidden shadow-2xl"
             >
               <SidebarContent />
             </motion.aside>
@@ -457,13 +617,41 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
         )}
       </AnimatePresence>
 
-      {/* ── Main area ─────────────────────────────────────── */}
+      {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 lg:overflow-hidden">
 
-        {/* Header */}
-        <header className="sticky top-0 z-30 flex items-center h-16 px-4 lg:px-6 border-b border-white/[0.06] bg-[#080d1a]/90 backdrop-blur-xl shrink-0">
+        {/* Year-expired banner — top of content */}
+        <AnimatePresence>
+          {yearExpired && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="overflow-hidden"
+            >
+              <div className="flex items-center gap-3 px-4 lg:px-6 py-3 bg-amber-500/10 border-b border-amber-500/25">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <p className="flex-1 text-sm text-amber-300">
+                  <span className="font-semibold">L’année scolaire est terminée.</span>
+                  {" "}Veuillez renouveler votre abonnement pour continuer à utiliser SoraSchool.
+                  Les rapports restent disponibles.
+                </p>
+                <Link
+                  href={`/${slug}/abonnement-annees`}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-amber-200 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Renouveler
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* Mobile hamburger */}
+        {/* Header */}
+        <header className="sora-academy-header sticky top-0 z-30 flex items-center h-16 px-4 lg:px-6 border-b border-white/[0.06] bg-[#080d1a]/90 backdrop-blur-xl shrink-0">
+
           <button
             onClick={() => setMobileOpen(true)}
             className="lg:hidden flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all mr-3 touch-feedback"
@@ -471,9 +659,7 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* School info */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            {/* School icon – mobile */}
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-xs font-bold text-white shadow-[0_0_12px_rgba(16,185,129,0.25)] lg:hidden">
               {schoolInitials}
             </div>
@@ -481,12 +667,17 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
               <p className="text-sm font-bold text-white truncate leading-none">{schoolName}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 {user && <RoleBadge role={user.role} />}
+                {yearExpired && (
+                  <span className="flex items-center gap-1 text-[10px] text-amber-400 font-medium">
+                    <Lock className="w-2.5 h-2.5" /> Accès restreint
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right actions */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <LanguageSwitcher compact />
             <Link href={`/${slug}/notifications`} className="relative flex h-9 w-9 items-center justify-center rounded-2xl text-gray-500 hover:bg-white/[0.06] hover:text-white transition-all touch-feedback">
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (

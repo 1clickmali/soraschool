@@ -15,7 +15,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  Globe2,
   Palette,
   ShieldCheck,
   UserCog,
@@ -146,6 +145,17 @@ function splitList(value: string) {
 
 function copyText(value: string) {
   navigator.clipboard?.writeText(value).catch(() => undefined);
+}
+
+async function fetchOfficialPlans() {
+  const first = await superAdminApi.plans();
+  if (first.data?.plans?.length) return first.data.plans;
+
+  // Safety net for fresh local databases: the backend normally auto-seeds
+  // official plans, but this keeps the UI usable if the first request is stale.
+  await superAdminApi.syncDefaultPlans();
+  const second = await superAdminApi.plans();
+  return second.data?.plans || [];
 }
 
 function contractFilename(institution: Institution) {
@@ -284,7 +294,7 @@ function EditPlanModal({ institution, onClose, onUpdated }: {
 }) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planId, setPlanId] = useState("");
-  const [billingCycle, setBillingCycle] = useState("MONTHLY");
+  const [billingCycle, setBillingCycle] = useState("ANNUAL");
   const [status, setStatus] = useState("ACTIVE");
   const [schoolYears, setSchoolYears] = useState("1");
   const [generateInvoice, setGenerateInvoice] = useState(true);
@@ -296,7 +306,10 @@ function EditPlanModal({ institution, onClose, onUpdated }: {
 
   useEffect(() => {
     if (!institution) return;
-    superAdminApi.plans().then(({ data }) => setPlans(data?.plans || []));
+    fetchOfficialPlans().then((officialPlans) => {
+      setPlans(officialPlans);
+      if (!institution.plan?.id && officialPlans[0]) setPlanId(officialPlans[0].id);
+    });
     setPlanId(institution.plan?.id || "");
     setStatus(institution.status === "active" ? "ACTIVE" : institution.status === "trial" ? "TRIAL" : "SUSPENDED");
   }, [institution]);
@@ -327,7 +340,7 @@ function EditPlanModal({ institution, onClose, onUpdated }: {
             <option value="" className="bg-soraCard">— Choisir un plan —</option>
             {plans.map(p => (
               <option key={p.id} value={p.id} className="bg-soraCard">
-                {p.name} — {p.tier} ({p.monthlyPrice.toLocaleString()} FCFA/mois)
+                {p.name} — {((p.installationFee ?? 0) + p.annualPrice).toLocaleString()} FCFA/1ère année
               </option>
             ))}
           </select>
@@ -335,16 +348,15 @@ function EditPlanModal({ institution, onClose, onUpdated }: {
         <div>
           <label className={labelCls}>Cycle de facturation</label>
           <select value={billingCycle} onChange={e => setBillingCycle(e.target.value)} className={inputCls}>
-            <option value="MONTHLY" className="bg-soraCard">Mensuelle</option>
-            <option value="ANNUAL" className="bg-soraCard">Annuelle (−10%)</option>
+            <option value="ANNUAL" className="bg-soraCard">Abonnement annuel</option>
             <option value="SCHOOL_YEAR" className="bg-soraCard">Année scolaire</option>
-            <option value="MULTI_YEAR" className="bg-soraCard">Multi-années (−20%)</option>
+            <option value="MULTI_YEAR" className="bg-soraCard">Multi-années scolaires</option>
           </select>
         </div>
         {(billingCycle === "SCHOOL_YEAR" || billingCycle === "MULTI_YEAR") && (
           <div>
             <label className={labelCls}>Nombre d&apos;années scolaires</label>
-            <input type="number" min="1" max="5" value={schoolYears} onChange={e => setSchoolYears(e.target.value)} className={inputCls} />
+            <input type="number" min="1" max="10" value={schoolYears} onChange={e => setSchoolYears(e.target.value)} className={inputCls} />
           </div>
         )}
         <div>
@@ -360,9 +372,8 @@ function EditPlanModal({ institution, onClose, onUpdated }: {
           <div className="rounded-xl border border-soraBlue/20 bg-soraBlue/5 px-4 py-3 text-sm">
             <p className="text-soraBlue font-semibold">{selectedPlan.name} — {selectedPlan.tier}</p>
             <p className="text-gray-400 mt-1">
-              {billingCycle === "MONTHLY" && `${selectedPlan.monthlyPrice.toLocaleString()} FCFA/mois`}
-              {billingCycle === "ANNUAL" && `${selectedPlan.annualPrice.toLocaleString()} FCFA/an`}
-              {(billingCycle === "SCHOOL_YEAR" || billingCycle === "MULTI_YEAR") && `${selectedPlan.annualPrice.toLocaleString()} FCFA × ${schoolYears} an(s)`}
+              Abonnement annuel : {selectedPlan.annualPrice.toLocaleString()} FCFA/an
+              {" · "}<span className="text-emerald-400">1ère année : {((selectedPlan.installationFee ?? 0) + selectedPlan.annualPrice).toLocaleString()} FCFA</span>
             </p>
           </div>
         )}
@@ -394,7 +405,7 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
     currency: "XOF", languages: "FR", levels: "2NDE, 1ERE, TLE",
     primaryColor: "#064E3B", secondaryColor: "#F7F1DE", accentColor: "#C89B3C",
     directorName: "", directorPhone: "", directorEmail: "",
-    planId: "", billingCycle: "MONTHLY", status: "TRIAL",
+    planId: "", billingCycle: "ANNUAL", status: "TRIAL",
     estimatedStudents: "", estimatedTeachers: "", schoolYears: "1",
   };
   const [formData, setFormData] = useState(emptyForm);
@@ -403,9 +414,15 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      superAdminApi.plans().then(({ data }) => setPlans(data?.plans || []));
-    }
+    if (!isOpen) return;
+    let active = true;
+    fetchOfficialPlans().then((officialPlans) => {
+      if (!active) return;
+      setPlans(officialPlans);
+      const basic = officialPlans.find((plan) => plan.code === "BASIC") ?? officialPlans[0];
+      if (basic) setFormData((prev) => ({ ...prev, planId: prev.planId || basic.id }));
+    });
+    return () => { active = false; };
   }, [isOpen]);
 
   const set = (field: string, value: string) => setFormData(prev => ({ ...prev, [field]: value }));
@@ -433,7 +450,7 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
   };
 
   const selectedPlan = plans.find((plan) => plan.id === formData.planId);
-  const isEnterprise = selectedPlan?.tier === "ENTERPRISE";
+  const isMultiSchool = selectedPlan?.canCreateBranches === true;
 
   const generateSlug = (name: string) =>
     name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -467,12 +484,12 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
       primaryColor: formData.primaryColor,
       secondaryColor: formData.secondaryColor,
       accentColor: formData.accentColor,
-      directorName: isEnterprise ? undefined : formData.directorName,
-      directorPhone: isEnterprise ? undefined : formData.directorPhone,
-      directorEmail: isEnterprise ? undefined : formData.directorEmail || undefined,
-      centralAdminName: isEnterprise ? formData.directorName : undefined,
-      centralAdminPhone: isEnterprise ? formData.directorPhone : undefined,
-      centralAdminEmail: isEnterprise ? formData.directorEmail || undefined : undefined,
+      directorName: isMultiSchool ? undefined : formData.directorName,
+      directorPhone: isMultiSchool ? undefined : formData.directorPhone,
+      directorEmail: isMultiSchool ? undefined : formData.directorEmail || undefined,
+      centralAdminName: isMultiSchool ? formData.directorName : undefined,
+      centralAdminPhone: isMultiSchool ? formData.directorPhone : undefined,
+      centralAdminEmail: isMultiSchool ? formData.directorEmail || undefined : undefined,
       planId: formData.planId,
       billingCycle: formData.billingCycle as "MONTHLY" | "ANNUAL" | "SCHOOL_YEAR" | "MULTI_YEAR",
       status: formData.status as "TRIAL" | "ACTIVE",
@@ -494,7 +511,7 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
         <FormSection
           icon={ShieldCheck}
           title="Plan et structure"
-          description="Basic/Premium créent une école unique. Enterprise crée une Administration Centrale qui ouvrira ensuite ses écoles."
+          description="Basic = école unique (1 établissement). Premium = groupe scolaire multi-établissements (Administration Centrale)."
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
@@ -503,7 +520,7 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
                 <option value="" className="bg-soraCard">— Choisir un plan —</option>
                 {plans.map((plan) => (
                   <option key={plan.id} value={plan.id} className="bg-soraCard">
-                    {plan.name} — {plan.tier} ({plan.monthlyPrice.toLocaleString()} FCFA/mois)
+                    {plan.name} — {((plan.installationFee ?? 0) + plan.annualPrice).toLocaleString()} FCFA/1ère année
                   </option>
                 ))}
               </select>
@@ -518,17 +535,16 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
             <div>
               <label className={labelCls}>Facturation</label>
               <select value={formData.billingCycle} onChange={(e) => set("billingCycle", e.target.value)} className={inputCls}>
-                <option value="MONTHLY" className="bg-soraCard">Mensuelle</option>
-                <option value="ANNUAL" className="bg-soraCard">Annuelle (−10%)</option>
+                <option value="ANNUAL" className="bg-soraCard">Abonnement annuel</option>
                 <option value="SCHOOL_YEAR" className="bg-soraCard">Année scolaire</option>
-                <option value="MULTI_YEAR" className="bg-soraCard">Multi-années (−20%)</option>
+                <option value="MULTI_YEAR" className="bg-soraCard">Multi-années scolaires</option>
               </select>
             </div>
             {(formData.billingCycle === "SCHOOL_YEAR" || formData.billingCycle === "MULTI_YEAR") && (
               <div>
                 <label className={labelCls}>Nombre d&apos;années scolaires</label>
                 <input
-                  type="number" min="1" max="5"
+                  type="number" min="1" max="10"
                   value={formData.schoolYears}
                   onChange={(e) => set("schoolYears", e.target.value)}
                   className={inputCls}
@@ -536,23 +552,30 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
               </div>
             )}
             <div className="md:col-span-2 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
-              <p className={cn("text-sm font-semibold", isEnterprise ? "text-soraGold" : "text-emerald-400")}>
-                {isEnterprise ? "Mode Enterprise : Administration Centrale" : "Mode école unique"}
+              <p className={cn("text-sm font-semibold", isMultiSchool ? "text-purple-300" : "text-emerald-400")}>
+                {isMultiSchool ? "Mode Premium : groupe scolaire multi-établissements" : "Mode Basic : école unique"}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                {isEnterprise
-                  ? "Le Super Admin crée le groupe et son administrateur central. Les écoles/campus seront créés dans l'espace groupe."
-                  : "Le Super Admin crée directement l'école et le compte Direction."}
+                {isMultiSchool
+                  ? "Crée un groupe scolaire avec Administration Centrale. Les écoles/campus seront ajoutés dans l'espace groupe."
+                  : "Crée directement une école avec son compte Direction."}
               </p>
+              {selectedPlan && (
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Frais d'installation : {(selectedPlan.installationFee ?? 0).toLocaleString()} FCFA
+                  {" · "}Abonnement annuel : {selectedPlan.annualPrice.toLocaleString()} FCFA
+                  {" · "}<span className="text-emerald-400 font-medium">Total 1ère année : {((selectedPlan.installationFee ?? 0) + selectedPlan.annualPrice).toLocaleString()} FCFA</span>
+                </p>
+              )}
             </div>
           </div>
         </FormSection>
 
-        <FormSection icon={Building2} title={isEnterprise ? "Identité du groupe" : "Identité de l'école"}>
+        <FormSection icon={Building2} title={isMultiSchool ? "Identité du groupe" : "Identité de l'école"}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
-              <label className={labelCls}>{isEnterprise ? "Nom Administration Centrale / Groupe *" : "Nom de l'école *"}</label>
-              <input required type="text" value={formData.name} placeholder={isEnterprise ? "Groupe Scolaire X" : "Lycée des Roses"}
+              <label className={labelCls}>{isMultiSchool ? "Nom Administration Centrale / Groupe *" : "Nom de l'école *"}</label>
+              <input required type="text" value={formData.name} placeholder={isMultiSchool ? "Groupe Scolaire X" : "Lycée des Roses"}
                 onChange={(e) => { set("name", e.target.value); set("slug", generateSlug(e.target.value)); }}
                 className={inputCls} />
             </div>
@@ -623,21 +646,21 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
           </div>
         </FormSection>
 
-        <FormSection icon={UserCog} title={isEnterprise ? "Compte Administrateur Central" : "Compte Direction"}>
+        <FormSection icon={UserCog} title={isMultiSchool ? "Compte Administrateur Central" : "Compte Direction"}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className={labelCls}>{isEnterprise ? "Nom admin central *" : "Nom directeur *"}</label>
-              <input required value={formData.directorName} placeholder={isEnterprise ? "Groupe Scolaire X" : "Koné Aminata"}
+              <label className={labelCls}>{isMultiSchool ? "Nom admin central *" : "Nom directeur *"}</label>
+              <input required value={formData.directorName} placeholder={isMultiSchool ? "Groupe Scolaire X" : "Koné Aminata"}
                 onChange={(e) => set("directorName", e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>{isEnterprise ? "Téléphone admin central *" : "Téléphone directeur *"}</label>
+              <label className={labelCls}>{isMultiSchool ? "Téléphone admin central *" : "Téléphone directeur *"}</label>
               <input required value={formData.directorPhone} placeholder="+225 07 59 77 99 13"
                 onChange={(e) => set("directorPhone", e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Email</label>
-              <input type="email" value={formData.directorEmail} placeholder={isEnterprise ? "groupe@ecole.ci" : "directeur@ecole.ci"}
+              <input type="email" value={formData.directorEmail} placeholder={isMultiSchool ? "groupe@ecole.ci" : "directeur@ecole.ci"}
                 onChange={(e) => set("directorEmail", e.target.value)} className={inputCls} />
             </div>
           </div>
@@ -646,7 +669,7 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
         <FormSection icon={CalendarDays} title="Capacité et niveaux">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Élèves estimés</label>
+              <label className={labelCls}>Apprenants estimés</label>
               <input type="number" min="0" value={formData.estimatedStudents} placeholder="500"
                 onChange={(e) => set("estimatedStudents", e.target.value)} className={inputCls} />
             </div>
@@ -706,7 +729,7 @@ function NewInstitutionModal({ isOpen, onClose, onCreated }: {
         <div className="sticky -bottom-6 -mx-6 px-6 py-4 bg-soraCard/95 backdrop-blur-xl border-t border-white/8 flex gap-3">
           <Button variant="secondary" type="button" onClick={onClose} className="flex-1">Annuler</Button>
           <Button type="submit" loading={loading} className="flex-1">
-            {isEnterprise ? "Créer l'administration centrale" : "Créer l'école"}
+            {isMultiSchool ? "Créer l'administration centrale" : "Créer l'école"}
           </Button>
         </div>
       </form>
@@ -735,11 +758,11 @@ function InstitutionDetailsModal({
 
   if (!institution) return null;
 
-  const isEnterprise = institution.structure === "CENTRAL_ADMINISTRATION" || institution.plan?.tier === "ENTERPRISE";
+  const isMultiSchool = institution.structure === "CENTRAL_ADMINISTRATION" || institution.plan?.canCreateBranches === true;
   const portalUrl = getPortalUrl(institution.slug);
-  const accessName = isEnterprise ? institution.centralAdminName : institution.directorName;
-  const accessPhone = isEnterprise ? institution.centralAdminPhone : institution.directorPhone;
-  const accessEmail = isEnterprise ? institution.centralAdminEmail : institution.directorEmail;
+  const accessName = isMultiSchool ? institution.centralAdminName : institution.directorName;
+  const accessPhone = isMultiSchool ? institution.centralAdminPhone : institution.directorPhone;
+  const accessEmail = isMultiSchool ? institution.centralAdminEmail : institution.directorEmail;
   const downloadContract = async () => {
     await downloadProtectedFile(
       `/api/super-admin/institutions/${institution.id}/installation-contract`,
@@ -754,12 +777,12 @@ function InstitutionDetailsModal({
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/8 text-xs font-semibold text-gray-300 mb-3">
-                {isEnterprise ? "Administration Centrale Enterprise" : "École unique"}
+                {isMultiSchool ? "Administration Centrale Premium" : "École unique Basic"}
               </div>
               <h3 className="text-xl font-bold text-white font-heading">{institution.name}</h3>
               <p className="text-sm text-gray-400 mt-1">/{institution.slug} · {institution.type}</p>
               <p className="text-xs text-gray-500 mt-2">
-                {isEnterprise
+                {isMultiSchool
                   ? "Le groupe se connecte ici, puis crée ses écoles/campus et nomme chaque directeur."
                   : "La direction se connecte ici pour gérer son école unique."}
               </p>
@@ -789,7 +812,7 @@ function InstitutionDetailsModal({
                 </button>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-500">{isEnterprise ? "Admin central" : "Directeur"}</span>
+                <span className="text-gray-500">{isMultiSchool ? "Admin central" : "Directeur"}</span>
                 <span className="text-white text-right">{accessName || "Non renseigné"}</span>
               </div>
               <div className="flex items-center justify-between gap-3">

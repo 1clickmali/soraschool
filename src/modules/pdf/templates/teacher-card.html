@@ -1,246 +1,116 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Carte Professeur - {{etablissement_nom}}</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; background: #f0f0f0; }
+  <meta charset="UTF-8" />
+  <title>Carte professeur</title>
+  <style>
+    :root {
+      --navy: #06224a;
+      --blue: #0f6bff;
+      --light-blue: #eaf3ff;
+      --text: #101827;
+      --border: #dbe3ef;
+      --white: #ffffff;
+    }
 
-  .card-page { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 30px; font-family: Arial, Helvetica, sans-serif; background: #f3f6fb; color: var(--text); }
+    .sheet-title { text-align: center; color: var(--navy); font-size: 26px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 30px; }
+    .cards-wrapper { display: flex; gap: 40px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+    .card-block { text-align: center; }
+    .caption { margin-top: 12px; font-size: 16px; font-weight: 700; color: var(--navy); }
+    .id-card { width: 430px; height: 270px; background: var(--white); border-radius: 14px; overflow: hidden; position: relative; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15); text-align: left; }
 
-  /* CR80 */
-  .card { width: 323px; height: 204px; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 4px 16px rgba(0,0,0,0.18); flex-shrink: 0; }
+    .top-shape { position: absolute; top: 0; left: 0; width: 145px; height: 70px; background: var(--navy); border-bottom-right-radius: 70px; z-index: 1; }
+    .top-shape::after { content: ""; position: absolute; right: -34px; top: 0; width: 75px; height: 70px; background: #1aa7e8; border-bottom-right-radius: 70px; z-index: -1; }
+    .logo { position: absolute; left: 28px; top: 12px; width: 54px; height: 54px; border: 2px solid rgba(255,255,255,0.75); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; z-index: 2; overflow: hidden; background: var(--navy); }
+    .logo img, .teacher-photo img, .qr-small img, .qr-large img { width: 100%; height: 100%; object-fit: cover; }
+    .school-info { position: absolute; left: 165px; top: 22px; right: 20px; }
+    .school-name { font-size: 16px; font-weight: 800; color: var(--navy); text-transform: uppercase; line-height: 1.1; }
+    .school-year { margin-top: 4px; font-size: 13px; color: var(--blue); font-weight: 700; }
+    .teacher-photo { position: absolute; left: 26px; top: 86px; width: 118px; height: 112px; border-radius: 12px; border: 2px solid var(--border); background: #edf2f7; overflow: hidden; }
+    .card-title { position: absolute; left: 165px; top: 80px; right: 0; height: 38px; background: var(--navy); color: white; font-size: 21px; letter-spacing: 4px; font-weight: 800; display: flex; align-items: center; padding-left: 20px; text-transform: uppercase; }
+    .info-list { position: absolute; left: 165px; top: 126px; right: 34px; }
+    .info-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; font-size: 12.8px; border-bottom: 1px solid #e5ebf3; padding: 3px 0; }
+    .label { color: var(--blue); font-weight: 800; }
+    .value { color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bottom-curve { position: absolute; left: 80px; right: 0; bottom: 0; height: 72px; border-top: 1.5px solid #2d7df4; border-top-left-radius: 60px; background: rgba(255,255,255,0.7); pointer-events: none; }
+    .qr-small { position: absolute; left: 28px; bottom: 20px; width: 72px; height: 72px; border: 2px solid #d7e6ff; border-radius: 8px; background: white; padding: 5px; z-index: 3; }
+    .qr-tag { position: absolute; left: 28px; bottom: 4px; background: var(--navy); color: white; font-size: 9px; font-weight: 800; letter-spacing: 1px; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; z-index: 4; }
+    .signature-box { position: absolute; right: 18px; bottom: 16px; width: 112px; height: 48px; border: 1.5px dashed #c7ced8; border-radius: 6px; color: var(--blue); font-size: 11px; font-weight: 700; display: flex; align-items: flex-start; justify-content: center; padding-top: 6px; z-index: 3; }
 
-  /* ══ RECTO — Carte Professeur ══ */
-  .card-front {
-    background: linear-gradient(160deg, #1a1a2e 0%, {{primary_color}} 60%, {{primary_dark}} 100%);
-    display: flex; flex-direction: column; height: 100%;
-  }
+    .back-header { height: 48px; background: var(--navy); color: white; display: flex; align-items: center; padding: 0 22px; gap: 12px; }
+    .back-icon { width: 32px; height: 32px; background: #1e8bff; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+    .back-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .teacher-back-layout { display: grid; grid-template-columns: 128px 1fr; gap: 18px; padding: 16px 24px 0 24px; }
+    .qr-large { width: 116px; height: 116px; border: 2px solid #2d7df4; border-radius: 8px; padding: 6px; background: white; }
+    .teacher-back-text { font-size: 13px; line-height: 1.4; color: var(--text); margin-bottom: 14px; }
+    .divider { height: 1.5px; background: var(--blue); margin: 10px 0; opacity: 0.8; }
+    .section-title { color: var(--blue); font-size: 13px; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; }
+    .back-row { display: grid; grid-template-columns: 28px 74px 1fr; gap: 8px; align-items: center; font-size: 11.8px; margin-bottom: 8px; }
+    .back-row .icon { color: var(--blue); font-size: 15px; text-align: center; }
+    .back-row .label { color: var(--navy); font-weight: 800; }
+    .back-row .value { color: var(--text); font-weight: 600; }
+    .notice { position: absolute; left: 20px; right: 20px; bottom: 36px; background: var(--light-blue); color: var(--navy); border-radius: 8px; padding: 8px 12px; font-size: 11.5px; font-weight: 600; text-align: center; }
+    .footer { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: var(--navy); color: white; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 
-  /* Bande décorative latérale gauche */
-  .card-front::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 4px;
-    background: linear-gradient(to bottom, {{accent_color}}, {{primary_color}});
-  }
-
-  .card-header {
-    display: flex; align-items: center; gap: 6px;
-    padding: 6px 8px 6px 12px;
-    background: rgba(0,0,0,0.3);
-    border-bottom: 1px solid {{accent_color}};
-    min-height: 36px; flex-shrink: 0;
-  }
-
-  .card-logo {
-    width: 24px; height: 24px; border-radius: 4px;
-    object-fit: contain; background: white; padding: 1px; flex-shrink: 0;
-  }
-
-  .card-logo-placeholder {
-    width: 24px; height: 24px; border-radius: 4px;
-    background: {{accent_color}}; display: flex; align-items: center; justify-content: center;
-    font-size: 8px; font-weight: 900; color: #1a1a2e; flex-shrink: 0;
-  }
-
-  .card-school-info { flex: 1; min-width: 0; }
-  .card-school-name { font-size: 7px; font-weight: 800; color: white; text-transform: uppercase; letter-spacing: 0.3px; word-wrap: break-word; line-height: 1.2; }
-  .card-year { font-size: 6px; color: {{accent_color}}; font-weight: 600; margin-top: 1px; }
-
-  .card-type-badge {
-    background: {{accent_color}}; color: #1a1a2e;
-    font-size: 5.5px; font-weight: 900; padding: 2px 5px;
-    border-radius: 3px; letter-spacing: 0.8px; flex-shrink: 0;
-  }
-
-  .card-body {
-    display: flex; flex: 1; padding: 6px 8px 6px 12px; gap: 8px; min-height: 0;
-  }
-
-  /* Photo */
-  .card-photo-zone {
-    width: 54px; height: 70px; border-radius: 6px; overflow: hidden;
-    border: 2px solid {{accent_color}};
-    background: rgba(255,255,255,0.08); flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .card-photo-zone img { width: 100%; height: 100%; object-fit: cover; }
-  .card-photo-placeholder { font-size: 6.5px; color: rgba(255,255,255,0.4); text-align: center; line-height: 1.4; }
-
-  /* Identité */
-  .card-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
-  .card-name { font-size: 9px; font-weight: 900; color: white; line-height: 1.25; word-wrap: break-word; text-transform: uppercase; }
-  .card-subtitle { font-size: 7px; color: {{accent_color}}; font-weight: 700; margin-top: 2px; }
-
-  .card-fields { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; }
-  .card-field { display: flex; flex-direction: column; }
-  .card-field-label { font-size: 5.5px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
-  .card-field-value { font-size: 7px; color: white; font-weight: 600; word-wrap: break-word; line-height: 1.2; }
-
-  /* QR */
-  .card-qr-zone { width: 42px; display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
-  .card-qr-zone img { width: 38px; height: 38px; border-radius: 3px; background: white; padding: 2px; }
-  .card-qr-label { font-size: 5px; color: rgba(255,255,255,0.5); text-align: center; }
-
-  .card-footer {
-    background: linear-gradient(90deg, {{accent_color}}, {{accent_light}});
-    padding: 3px 8px 3px 12px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-  }
-  .card-footer-label { font-size: 6px; font-weight: 900; color: #1a1a2e; text-transform: uppercase; letter-spacing: 0.8px; }
-  .card-motto { font-size: 5.5px; color: rgba(0,0,0,0.7); font-style: italic; text-align: right; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  /* ══ VERSO ══ */
-  .card-back { background: #f8f8f8; display: flex; flex-direction: column; height: 100%; }
-
-  .card-back-header { background: #1a1a2e; padding: 5px 8px; border-bottom: 2px solid {{accent_color}}; flex-shrink: 0; }
-  .card-back-title { font-size: 7px; font-weight: 900; color: white; text-transform: uppercase; letter-spacing: 1px; }
-  .card-back-school { font-size: 6px; color: {{accent_color}}; font-weight: 600; margin-top: 1px; word-wrap: break-word; }
-
-  .card-back-body { flex: 1; padding: 5px 8px; display: flex; gap: 8px; min-height: 0; }
-
-  .card-back-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .card-back-legal { font-size: 5.5px; color: #555; line-height: 1.4; font-style: italic; margin-bottom: 4px; border-left: 2px solid {{accent_color}}; padding-left: 4px; }
-
-  .card-back-contact { display: flex; flex-direction: column; gap: 2px; }
-  .card-back-contact-row { font-size: 6px; color: #333; display: flex; gap: 3px; align-items: flex-start; word-wrap: break-word; }
-  .card-back-contact-label { font-weight: 700; color: #1a1a2e; flex-shrink: 0; min-width: 28px; }
-  .card-back-contact-value { color: #444; word-break: break-all; }
-
-  .card-back-codes { width: 70px; display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
-  .card-back-qr img { width: 36px; height: 36px; border: 1px solid #ddd; border-radius: 2px; background: white; padding: 1px; }
-  .card-back-barcode img { width: 68px; height: 22px; object-fit: contain; background: white; }
-  .card-back-barcode-text { font-size: 5px; color: #666; text-align: center; font-family: monospace; letter-spacing: 0.5px; }
-
-  .card-back-footer { background: #1a1a2e; padding: 3px 8px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-  .card-back-status { font-size: 6px; font-weight: 900; color: {{accent_color}}; text-transform: uppercase; letter-spacing: 0.8px; }
-  .card-back-contract { font-size: 5.5px; color: rgba(255,255,255,0.6); }
-
-  .card-label { font-size: 10px; font-weight: 700; color: #666; text-align: center; margin-bottom: 4px; }
-</style>
+    @media print {
+      body { background: white; }
+      .sheet-title, .caption { display: none; }
+      .cards-wrapper { display: block; }
+      .card-block { page-break-after: always; margin-bottom: 20px; }
+      .id-card { box-shadow: none; }
+    }
+  </style>
 </head>
 <body>
-<div class="card-page">
-
-  <!-- ══ RECTO ══ -->
-  <p class="card-label">RECTO — Carte Professeur</p>
-  <div class="card card-front">
-
-    <div class="card-header">
-      {{#if logo_ecole}}
-      <img class="card-logo" src="{{logo_ecole}}" alt="Logo">
-      {{else}}
-      <div class="card-logo-placeholder">{{acronyme}}</div>
-      {{/if}}
-      <div class="card-school-info">
-        <div class="card-school-name">{{etablissement_nom}}</div>
-        <div class="card-year">Année scolaire {{annee_scolaire}}</div>
+  <h1 class="sheet-title">Carte professeur</h1>
+  <div class="cards-wrapper">
+    <div class="card-block">
+      <div class="id-card">
+        <div class="top-shape"></div>
+        <div class="logo"><img src="{{school_logo_url}}" alt="Logo école" /></div>
+        <div class="school-info">
+          <div class="school-name">{{school_name}}</div>
+          <div class="school-year">Année scolaire {{academic_year}}</div>
+        </div>
+        <div class="teacher-photo"><img src="{{teacher_photo_url}}" alt="Photo professeur" /></div>
+        <div class="card-title">Carte professeur</div>
+        <div class="info-list">
+          <div class="info-row"><span class="label">Nom :</span><span class="value">{{teacher_last_name}}</span></div>
+          <div class="info-row"><span class="label">Prénom :</span><span class="value">{{teacher_first_name}}</span></div>
+          <div class="info-row"><span class="label">ID Personnel :</span><span class="value">{{teacher_staff_id}}</span></div>
+          <div class="info-row"><span class="label">Fonction :</span><span class="value">{{teacher_role}}</span></div>
+          <div class="info-row"><span class="label">Matière :</span><span class="value">{{teacher_subject}}</span></div>
+          <div class="info-row"><span class="label">Statut :</span><span class="value">{{teacher_status}}</span></div>
+        </div>
+        <div class="bottom-curve"></div>
+        <div class="qr-small"><img src="{{teacher_qr_code_url}}" alt="QR code pointage professeur" /></div>
+        <div class="qr-tag">QR Code Pointage</div>
+        <div class="signature-box">Signature Direction</div>
       </div>
-      <div class="card-type-badge">PROF.</div>
+      <div class="caption">Carte Professeur — Recto</div>
     </div>
 
-    <div class="card-body">
-
-      <div class="card-photo-zone">
-        {{#if photo_url}}
-        <img src="{{photo_url}}" alt="Photo professeur">
-        {{else}}
-        <div class="card-photo-placeholder">PHOTO<br>PROF.</div>
-        {{/if}}
-      </div>
-
-      <div class="card-identity">
-        <div class="card-name">{{professeur_nom_complet}}</div>
-        <div class="card-subtitle">{{discipline}}</div>
-        <div class="card-fields">
-          <div class="card-field">
-            <span class="card-field-label">Fonction</span>
-            <span class="card-field-value">{{fonction_prof}}</span>
-          </div>
-          <div class="card-field">
-            <span class="card-field-label">Contrat</span>
-            <span class="card-field-value">{{type_contrat}}</span>
-          </div>
-          <div class="card-field">
-            <span class="card-field-label">Identifiant</span>
-            <span class="card-field-value" style="font-family:monospace; font-size:7px;">{{identifiant_prof}}</span>
+    <div class="card-block">
+      <div class="id-card">
+        <div class="back-header"><div class="back-icon">⏱</div><div class="back-title">Pointage du personnel</div></div>
+        <div class="teacher-back-layout">
+          <div class="qr-large"><img src="{{teacher_qr_code_url}}" alt="QR code pointage" /></div>
+          <div>
+            <div class="teacher-back-text">Ce QR code sert au pointage d’entrée et de sortie du personnel.</div>
+            <div class="divider"></div>
+            <div class="section-title">Informations établissement</div>
+            <div class="back-row"><span class="icon">📍</span><span class="label">Adresse :</span><span class="value">{{school_address}}</span></div>
+            <div class="back-row"><span class="icon">☎</span><span class="label">Téléphone :</span><span class="value">{{school_phone}}</span></div>
+            <div class="back-row"><span class="icon">✉</span><span class="label">Email :</span><span class="value">{{school_email}}</span></div>
           </div>
         </div>
+        <div class="notice">En cas de perte, contactez la Direction.</div>
+        <div class="footer">Document généré par <strong>&nbsp;SoraSchool</strong></div>
       </div>
-
-      <div class="card-qr-zone">
-        <img src="{{qr_code}}" alt="QR Code">
-        <span class="card-qr-label">Vérif.</span>
-      </div>
-
+      <div class="caption">Carte Professeur — Verso</div>
     </div>
-
-    <div class="card-footer">
-      <span class="card-footer-label">Carte Professeur</span>
-      <span class="card-motto">{{devise_etablissement}}</span>
-    </div>
-
   </div>
-
-  <!-- ══ VERSO ══ -->
-  <p class="card-label">VERSO — Informations officielles</p>
-  <div class="card card-back">
-
-    <div class="card-back-header">
-      <div class="card-back-title">Informations Officielles</div>
-      <div class="card-back-school">{{etablissement_nom}}</div>
-    </div>
-
-    <div class="card-back-body">
-
-      <div class="card-back-info">
-        <p class="card-back-legal">
-          Cette carte est strictement personnelle et valable pour l'année scolaire en cours. Elle doit être présentée sur demande et restituée à la fin du contrat.
-        </p>
-        <div class="card-back-contact">
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Adresse :</span>
-            <span class="card-back-contact-value">{{etablissement_adresse}}</span>
-          </div>
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Tél. :</span>
-            <span class="card-back-contact-value">{{etablissement_telephone}}</span>
-          </div>
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Email :</span>
-            <span class="card-back-contact-value">{{etablissement_email}}</span>
-          </div>
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Web :</span>
-            <span class="card-back-contact-value">{{etablissement_site}}</span>
-          </div>
-        </div>
-        <div style="margin-top:3px; font-size:6px; color:#1a1a2e; font-weight:700;">
-          Contrat : <span style="color:#444;">{{type_contrat}}</span>
-        </div>
-      </div>
-
-      <div class="card-back-codes">
-        <div class="card-back-qr">
-          <img src="{{qr_code}}" alt="QR">
-        </div>
-        <div class="card-back-barcode">
-          <img src="{{barcode}}" alt="Barcode">
-        </div>
-        <div class="card-back-barcode-text">{{identifiant_prof}}</div>
-      </div>
-
-    </div>
-
-    <div class="card-back-footer">
-      <span class="card-back-status">PROFESSEUR</span>
-      <span class="card-back-contract">{{type_contrat}}</span>
-    </div>
-
-  </div>
-
-</div>
 </body>
 </html>

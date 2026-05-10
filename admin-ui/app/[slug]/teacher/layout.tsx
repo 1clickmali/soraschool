@@ -23,20 +23,23 @@ import {
   Star,
   User,
   X,
-  Bell,
   Clock,
+  Banknote,
+  QrCode,
+  FileSignature,
+  FileUp,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolUser } from "@/lib/school-api";
-import { useBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 /* ── Nav config ─────────────────────────────────────────── */
 const bottomNavItems = (slug: string) => [
   { label: "Accueil",    href: `/${slug}/teacher/dashboard`,        icon: LayoutDashboard, color: "text-violet-400"  },
-  { label: "Élèves",     href: `/${slug}/teacher/mes-eleves`,       icon: GraduationCap,   color: "text-blue-400"   },
-  { label: "Notes",      href: `/${slug}/teacher/notes`,            icon: Star,            color: "text-amber-400"  },
-  { label: "Présences",  href: `/${slug}/teacher/presences`,        icon: CheckSquare,     color: "text-emerald-400"},
+  { label: "Apprenants", href: `/${slug}/teacher/mes-eleves`,       icon: GraduationCap,   color: "text-blue-400"   },
+  { label: "Évaluations", href: `/${slug}/teacher/notes`,           icon: Star,            color: "text-amber-400"  },
+  { label: "Assiduité",  href: `/${slug}/teacher/presences`,        icon: CheckSquare,     color: "text-emerald-400"},
   { label: "Plus",       href: "",                                   icon: MoreHorizontal,  color: "text-gray-400"   },
 ];
 
@@ -46,11 +49,15 @@ const moreItems = (slug: string) => [
   { label: "Devoirs",           href: `/${slug}/teacher/devoirs`,           icon: BookOpen,     color: "from-amber-500 to-orange-500"   },
   { label: "Examens",           href: `/${slug}/teacher/examens`,           icon: FileText,     color: "from-emerald-500 to-teal-500"   },
   { label: "Calendrier",        href: `/${slug}/teacher/calendrier`,        icon: CalendarDays, color: "from-sky-500 to-blue-600"       },
-  { label: "Congés",            href: `/${slug}/teacher/conges`,            icon: CalendarOff,  color: "from-rose-500 to-pink-500"      },
-  { label: "Discipline",        href: `/${slug}/teacher/discipline`,        icon: Shield,       color: "from-red-500 to-rose-600"       },
-  { label: "Documents",         href: `/${slug}/teacher/documents`,         icon: Folder,       color: "from-indigo-500 to-violet-500"  },
+  { label: "Calendrier scolaire", href: `/${slug}/teacher/conges`,          icon: CalendarOff,  color: "from-rose-500 to-pink-500"      },
+  { label: "Vie scolaire",      href: `/${slug}/teacher/discipline`,        icon: Shield,       color: "from-red-500 to-rose-600"       },
+  { label: "Documents officiels", href: `/${slug}/teacher/documents`,       icon: Folder,       color: "from-indigo-500 to-violet-500"  },
   { label: "Messagerie",        href: `/${slug}/teacher/messagerie`,        icon: MessageSquare,color: "from-teal-500 to-emerald-500"   },
   { label: "Mon pointage",      href: `/${slug}/teacher/pointage`,          icon: Clock,        color: "from-blue-500 to-sky-600"       },
+  { label: "Mes justifications", href: `/${slug}/teacher/justifications`,    icon: FileUp,       color: "from-amber-500 to-yellow-500"   },
+  { label: "Mon salaire",       href: `/${slug}/teacher/salaire`,           icon: Banknote,     color: "from-emerald-500 to-teal-500"   },
+  { label: "Mon contrat",       href: `/${slug}/teacher/contrat`,           icon: FileSignature,color: "from-indigo-500 to-violet-500"  },
+  { label: "Mon QR code",       href: `/${slug}/teacher/qr-code`,           icon: QrCode,       color: "from-sky-500 to-blue-600"       },
   { label: "Mon profil",        href: `/${slug}/teacher/mon-profil`,        icon: User,         color: "from-gray-500 to-slate-600"     },
 ];
 
@@ -58,20 +65,25 @@ const sidebarItems = (slug: string) => [
   { label: "Tableau de bord",    href: `/${slug}/teacher/dashboard`,       icon: LayoutDashboard },
   { sep: true, label: "MES COURS" },
   { label: "Mes classes",        href: `/${slug}/teacher/mes-classes`,     icon: School },
-  { label: "Mes élèves",         href: `/${slug}/teacher/mes-eleves`,      icon: GraduationCap },
+  { label: "Mes apprenants",     href: `/${slug}/teacher/mes-eleves`,      icon: GraduationCap },
   { label: "Emploi du temps",    href: `/${slug}/teacher/emploi-du-temps`, icon: Calendar },
-  { label: "Calendrier",         href: `/${slug}/teacher/calendrier`,      icon: CalendarDays },
+  { label: "Calendrier scolaire", href: `/${slug}/teacher/calendrier`,     icon: CalendarDays },
   { sep: true, label: "PÉDAGOGIE" },
-  { label: "Présences",          href: `/${slug}/teacher/presences`,       icon: CheckSquare },
-  { label: "Notes & saisie",     href: `/${slug}/teacher/notes`,           icon: Star },
+  { label: "Assiduité",          href: `/${slug}/teacher/presences`,       icon: CheckSquare },
+  { label: "Évaluations",        href: `/${slug}/teacher/notes`,           icon: Star },
   { label: "Devoirs",            href: `/${slug}/teacher/devoirs`,         icon: BookOpen },
-  { label: "Examens & bulletins",href: `/${slug}/teacher/examens`,         icon: FileText },
-  { label: "Vacances / Congés",  href: `/${slug}/teacher/conges`,          icon: CalendarOff },
-  { label: "Discipline",         href: `/${slug}/teacher/discipline`,      icon: Shield },
+  { label: "Bulletins",          href: `/${slug}/teacher/examens`,         icon: FileText },
+  { label: "Congés",             href: `/${slug}/teacher/conges`,          icon: CalendarOff },
+  { label: "Vie scolaire",       href: `/${slug}/teacher/discipline`,      icon: Shield },
   { sep: true, label: "SERVICES" },
-  { label: "Documents",          href: `/${slug}/teacher/documents`,       icon: Folder },
+  { label: "Documents officiels", href: `/${slug}/teacher/documents`,      icon: Folder },
   { label: "Messagerie",         href: `/${slug}/teacher/messagerie`,      icon: MessageSquare },
   { sep: true, label: "MON ESPACE" },
+  { label: "Mon pointage",        href: `/${slug}/teacher/pointage`,        icon: Clock },
+  { label: "Mes justifications",  href: `/${slug}/teacher/justifications`,  icon: FileUp },
+  { label: "Mon salaire",         href: `/${slug}/teacher/salaire`,         icon: Banknote },
+  { label: "Mon contrat",         href: `/${slug}/teacher/contrat`,         icon: FileSignature },
+  { label: "Mon QR code",         href: `/${slug}/teacher/qr-code`,         icon: QrCode },
   { label: "Mon profil",         href: `/${slug}/teacher/mon-profil`,      icon: User },
 ] as const;
 
@@ -119,7 +131,6 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   const [moreOpen, setMoreOpen]     = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
-  const { branding } = useBranding();
 
   useEffect(() => {
     if (!isSchoolAuthenticated()) { router.replace(`/${slug}/login`); return; }
@@ -175,7 +186,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     <motion.aside
       animate={{ width: collapsed ? 72 : 260 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="relative hidden h-screen shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-soraSidebar lg:flex"
+      className="sora-academy-sidebar relative hidden h-screen shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-soraSidebar lg:flex"
     >
       {/* Glow */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-violet-500/8 to-transparent" />
@@ -289,7 +300,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <motion.aside key="t-drawer"
             initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-soraSidebar lg:hidden shadow-2xl"
+            className="sora-academy-sidebar fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-soraSidebar lg:hidden shadow-2xl"
           >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-violet-500/10 to-transparent" />
             <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] px-4">
@@ -356,7 +367,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
 
   /* ── Mobile top header ────────────────────────────────── */
   const MobileHeader = () => (
-    <header className="mobile-header lg:hidden">
+    <header className="sora-academy-header mobile-header lg:hidden">
       <div className="flex h-full items-center gap-3 px-4">
         <button onClick={() => setMobileOpen(true)}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 text-xs font-bold text-white shadow-md shadow-violet-500/20 touch-feedback"
@@ -367,9 +378,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <p className="truncate text-[13px] font-bold text-white leading-tight">{displayName}</p>
           <p className="text-[11px] text-violet-400/70">{greeting.text}, Enseignant</p>
         </div>
-        <button className="relative rounded-2xl p-2 text-gray-400 hover:bg-white/[0.06] hover:text-white touch-feedback">
-          <Bell className="h-5 w-5" />
-        </button>
+        <LanguageSwitcher compact />
       </div>
     </header>
   );
@@ -482,7 +491,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   );
 
   return (
-    <div className="flex min-h-screen bg-[#080d1a]">
+    <div className="sora-academy-shell flex min-h-screen bg-[#080d1a]">
       <DesktopSidebar />
       <MobileSidebar />
       <MobileHeader />
@@ -495,7 +504,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         collapsed ? "lg:ml-[72px]" : "lg:ml-0"
       )}>
         {/* Desktop header */}
-        <header className="sticky top-0 z-30 hidden h-16 shrink-0 items-center border-b border-white/[0.06] bg-[#080d1a]/90 px-6 backdrop-blur-xl lg:flex">
+        <header className="sora-academy-header sticky top-0 z-30 hidden h-16 shrink-0 items-center border-b border-white/[0.06] bg-[#080d1a]/90 px-6 backdrop-blur-xl lg:flex">
           <div className="flex flex-1 items-center gap-3 min-w-0">
             <p className="text-sm font-bold text-white">{displayName}</p>
             <span className="rounded-full border border-violet-500/25 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-400">
@@ -503,9 +512,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <button className="flex h-9 w-9 items-center justify-center rounded-2xl text-gray-500 hover:bg-white/[0.06] hover:text-white transition">
-              <Bell className="h-4 w-4" />
-            </button>
+            <LanguageSwitcher compact />
             <button onClick={handleLogout}
               className="flex h-9 items-center gap-2 rounded-2xl px-3 text-sm text-gray-500 hover:bg-red-500/10 hover:text-red-400 transition touch-feedback"
             >

@@ -165,7 +165,7 @@ export default function TeacherExamsPage() {
       <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]">
         <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-4">
           <BarChart3 className="h-4 w-4 text-violet-400" />
-          <h2 className="text-sm font-semibold text-white">Notes d’examens et devoirs corrigés</h2>
+          <h2 className="text-sm font-semibold text-white">Évaluations d’examens et devoirs corrigés</h2>
           <span className="ml-auto text-xs text-gray-500">{grades.length} note{grades.length > 1 ? "s" : ""}</span>
         </div>
 

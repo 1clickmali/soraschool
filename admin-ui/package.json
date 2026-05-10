@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:lan": "next dev -H 0.0.0.0",
+    "dev": "next dev --webpack",
+    "dev:lan": "next dev --webpack -H 0.0.0.0",
+    "dev:turbo": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "deploy:railway": "railway up --detach",
     "deploy:vercel": "npx vercel --prod",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "clsx": "^2.1.1",

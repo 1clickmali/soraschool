@@ -183,7 +183,10 @@ export default function SchoolLoginPage() {
   useEffect(() => {
     if (!slug) return;
     schoolAuthApi.getInstitutionBySlug(slug).then(({ data }) => {
-      if (data?.institution) setInstitution(data.institution);
+      if (data?.institution) {
+        setInstitution(data.institution);
+        localStorage.setItem("last_school_slug", data.institution.slug);
+      }
       setLoadingInstitution(false);
     }).catch(() => setLoadingInstitution(false));
   }, [slug]);
@@ -235,6 +238,7 @@ export default function SchoolLoginPage() {
     }
     setSchoolTokens(data.accessToken, data.refreshToken);
     setCurrentSchoolSlug(slug);
+    localStorage.setItem("last_school_slug", slug);
     setSuccess("Connexion réussie ! Redirection...");
     const nextPath =
       data.user.role === "PARENT"
@@ -291,11 +295,11 @@ export default function SchoolLoginPage() {
         className="absolute top-6 left-6"
       >
         <Link
-          href="/login"
+          href="/connexion?change=1"
           className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-300 transition-colors group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Retour admin
+          Changer d’établissement
         </Link>
       </motion.div>
 
@@ -345,6 +349,9 @@ export default function SchoolLoginPage() {
                 <GraduationCap className="w-3.5 h-3.5 text-emerald-500" />
                 <p className="text-emerald-500/80 text-xs font-medium">Portail Établissement</p>
               </div>
+              <p className="mt-1 text-[11px] text-gray-500">
+                Code école : {institution?.code || slug}
+              </p>
               {institution?.status && (
                 <span className={cn(
                   "mt-2 text-xs px-2.5 py-0.5 rounded-full border font-medium",

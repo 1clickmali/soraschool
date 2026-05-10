@@ -5,26 +5,18 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  BookOpen,
-  CalendarDays,
   ChevronLeft,
-  ClipboardList,
-  GraduationCap,
   Home,
   LogOut,
   X,
 } from "lucide-react";
 import { isSchoolAuthenticated, removeSchoolTokens } from "@/lib/school-auth";
 import { schoolAuthApi, type SchoolInstitution, type SchoolUser } from "@/lib/school-api";
-import { useBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 const navItems = (slug: string) => [
-  { label: "Accueil",         href: `/${slug}/student/dashboard`,     icon: Home },
-  { label: "Mes notes",       href: `/${slug}/student/notes`,         icon: GraduationCap },
-  { label: "Absences",        href: `/${slug}/student/absences`,      icon: CalendarDays },
-  { label: "Emploi du temps", href: `/${slug}/student/emploi-du-temps`, icon: ClipboardList },
-  { label: "Devoirs",         href: `/${slug}/student/devoirs`,       icon: BookOpen },
+  { label: "Accueil", href: `/${slug}/student/dashboard`, icon: Home },
 ];
 
 function PremiumLoader() {
@@ -62,7 +54,6 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const [authChecked, setAuthChecked] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { branding } = useBranding();
 
   useEffect(() => {
     if (!isSchoolAuthenticated()) { router.replace(`/${slug}/login`); return; }
@@ -88,7 +79,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
   if (!authChecked) return <PremiumLoader />;
 
-  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Élève";
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Apprenant";
   const firstName = user?.firstName || displayName.split(" ")[0];
   const initials = getInitials(user?.firstName, user?.lastName);
   const items = navItems(slug);
@@ -98,10 +89,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   }
 
   return (
-    <div className="min-h-screen bg-[#080d1a]">
+    <div className="sora-academy-shell min-h-screen bg-[#080d1a]">
       {/* Desktop sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/[0.06] bg-[#080d19]/98 backdrop-blur-xl transition-all duration-300 lg:flex",
+        "sora-academy-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/[0.06] bg-[#080d19]/98 backdrop-blur-xl transition-all duration-300 lg:flex",
         collapsed ? "w-20" : "w-72"
       )}>
         <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-violet-500/8 to-transparent" />
@@ -113,8 +104,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-bold text-white leading-tight">{institution?.name || "Portail Élève"}</p>
-                <p className="text-[11px] text-violet-300/70 mt-0.5">Espace élève</p>
+                <p className="truncate text-[13px] font-bold text-white leading-tight">{institution?.name || "Portail Apprenant"}</p>
+                <p className="text-[11px] text-violet-300/70 mt-0.5">Espace apprenant</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -170,12 +161,13 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-semibold text-white">{displayName}</p>
-                    <p className="text-[11px] text-violet-300/60">Élève</p>
+                    <p className="text-[11px] text-violet-300/60">Apprenant</p>
                   </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
+          {!collapsed && <div className="mb-2"><LanguageSwitcher /></div>}
           <button onClick={handleLogout}
             className={cn("flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-gray-500 transition hover:bg-red-500/10 hover:text-red-400",
               collapsed && "justify-center"
@@ -199,7 +191,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             <motion.aside
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[#080d19] lg:hidden"
+              className="sora-academy-sidebar fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[#080d19] lg:hidden"
             >
               <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-violet-500/10 to-transparent" />
               <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] px-4">
@@ -207,8 +199,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                   {institution?.name?.[0]?.toUpperCase() || "E"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-bold text-white">{institution?.name || "Portail Élève"}</p>
-                  <p className="text-[11px] text-violet-300/70">Espace élève</p>
+                  <p className="truncate text-[13px] font-bold text-white">{institution?.name || "Portail Apprenant"}</p>
+                  <p className="text-[11px] text-violet-300/70">Espace apprenant</p>
                 </div>
                 <button onClick={() => setMobileOpen(false)} className="rounded-xl p-1.5 text-gray-500 hover:bg-white/8 hover:text-white">
                   <X className="h-5 w-5" />
@@ -261,7 +253,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       </AnimatePresence>
 
       {/* Mobile header */}
-      <header className="mobile-header lg:hidden">
+      <header className="sora-academy-header mobile-header lg:hidden">
         <div className="flex h-full items-center gap-3 px-4">
           <button onClick={() => setMobileOpen(true)}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-xs font-bold text-white shadow-md touch-feedback"
@@ -272,6 +264,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             <p className="truncate text-[13px] font-bold text-white">{institution?.name || "Portail élève"}</p>
             <p className="text-[11px] text-violet-300/70">Bonjour, {firstName}</p>
           </div>
+          <LanguageSwitcher compact />
         </div>
       </header>
 

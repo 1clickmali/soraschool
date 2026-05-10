@@ -183,7 +183,7 @@ export default function DashboardPage() {
               delay={0.15}
             />
             <StatCard
-              title="Total Élèves"
+              title="Total apprenants"
               value={dashboard.totalStudents}
               icon={GraduationCap}
               color="purple"

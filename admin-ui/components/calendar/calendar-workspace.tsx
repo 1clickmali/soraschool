@@ -590,12 +590,8 @@ export function CalendarWorkspace({ mode }: { mode: CalendarWorkspaceMode }) {
         const dayEvents = rangeEvents.filter((event) => overlapsDay(event, day));
         const today = isSameDay(day, new Date());
         return (
-          <button
+          <div
             key={day.toISOString()}
-            onClick={() => {
-              setCurrentDate(day);
-              if (dayEvents.length === 0 && canManageEvents) openCreate(day);
-            }}
             className={cn(
               "w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition active:scale-[0.99]",
               today && "border-emerald-500/35 bg-emerald-500/[0.06]"
@@ -617,7 +613,19 @@ export function CalendarWorkspace({ mode }: { mode: CalendarWorkspaceMode }) {
                   {dayEvents.slice(0, 2).map((event) => (
                     <EventPill key={event.id} event={event} compact onClick={openDetail} />
                   ))}
-                  {dayEvents.length === 0 && (
+                  {dayEvents.length === 0 && canManageEvents && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentDate(day);
+                        openCreate(day);
+                      }}
+                      className="w-full rounded-xl border border-dashed border-emerald-500/25 px-3 py-2 text-left text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/10"
+                    >
+                      Créer un événement
+                    </button>
+                  )}
+                  {dayEvents.length === 0 && !canManageEvents && (
                     <p className="rounded-xl border border-dashed border-white/10 px-3 py-2 text-xs text-gray-600">
                       Aucun événement
                     </p>
@@ -626,7 +634,7 @@ export function CalendarWorkspace({ mode }: { mode: CalendarWorkspaceMode }) {
                 </div>
               </div>
             </div>
-          </button>
+          </div>
         );
       })}
     </div>
@@ -647,7 +655,7 @@ export function CalendarWorkspace({ mode }: { mode: CalendarWorkspaceMode }) {
           const outside = day.getMonth() !== currentDate.getMonth();
           const today = isSameDay(day, new Date());
           return (
-            <button
+            <div
               key={day.toISOString()}
               onDoubleClick={() => openCreate(day)}
               className={cn(
@@ -667,7 +675,7 @@ export function CalendarWorkspace({ mode }: { mode: CalendarWorkspaceMode }) {
                   <EventPill key={event.id} event={event} compact onClick={openDetail} />
                 ))}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

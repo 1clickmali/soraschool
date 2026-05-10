@@ -367,7 +367,7 @@ export function HolidaysWorkspace({ mode }: { mode: HolidaysWorkspaceMode }) {
               <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
               <span className="truncate">Synchronisé automatiquement avec le calendrier</span>
             </div>
-            <h1 className="font-heading text-[clamp(1.75rem,7vw,2.75rem)] font-bold leading-[1.05] tracking-tight text-white">Vacances / Congés</h1>
+            <h1 className="font-heading text-[clamp(1.75rem,7vw,2.75rem)] font-bold leading-[1.05] tracking-tight text-white">Calendrier scolaire</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400 sm:text-[15px]">
               Vacances scolaires, congés administratifs, jours fériés, fermetures et périodes sans cours. Chaque période publiée apparaît automatiquement dans le Calendrier.
             </p>

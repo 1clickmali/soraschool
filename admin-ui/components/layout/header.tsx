@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,30 +9,29 @@ import {
   ChevronRight,
   LogOut,
   Menu,
-  Search,
   Settings,
-  User,
 } from "lucide-react";
 import { superAdminApi, type SuperAdminNotification } from "@/lib/api";
 import { useBranding } from "@/lib/branding";
 import { cn, formatRelativeDate, getInitials } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 const breadcrumbMap: Record<string, string> = {
   "/dashboard":       "Vue d'ensemble",
-  "/analytics":       "Analytique",
+  "/analytics":       "Rapports & statistiques",
   "/institutions":    "Écoles clientes",
   "/plans":           "Plans & abonnements",
-  "/payments":        "Facturation SaaS",
-  "/factures":        "Factures SaaS",
+  "/payments":        "Finance SaaS",
+  "/factures":        "Finance SaaS",
   "/configuration":   "Configuration",
-  "/acces-autorises": "Utilisateurs & accès",
-  "/documents":       "Documents",
-  "/systeme":         "Système",
-  "/administration":  "Gestion admins",
-  "/parametres":      "Paramètres",
-  "/calendar":        "Calendrier",
-  "/holidays":        "Vacances / Congés",
+  "/acces-autorises": "Utilisateurs & permissions",
+  "/documents":       "Documents officiels",
+  "/systeme":         "Audit & sécurité",
+  "/administration":  "Utilisateurs & permissions",
+  "/parametres":      "Configuration plateforme",
+  "/calendar":        "Calendrier scolaire",
+  "/holidays":        "Calendrier scolaire",
 };
 
 interface HeaderProps {
@@ -59,7 +59,7 @@ export function Header({ onMenuOpen }: HeaderProps) {
   const closeAll = () => { setShowNotifications(false); setShowUserMenu(false); };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center border-b border-white/[0.06] bg-[#080d1a]/90 px-4 backdrop-blur-xl lg:px-6">
+    <header className="sora-academy-header sticky top-0 z-30 flex h-16 shrink-0 items-center border-b border-white/[0.06] bg-[#080d1a]/90 px-4 backdrop-blur-xl lg:px-6">
 
       {/* ── Mobile hamburger ──────────────────────────── */}
       <button
@@ -97,19 +97,9 @@ export function Header({ onMenuOpen }: HeaderProps) {
         <p className="text-[11px] text-blue-400/60 mt-0.5">{branding.appName}</p>
       </div>
 
-      {/* ── Search (desktop) ─────────────────────────── */}
-      <div className="mr-3 hidden w-52 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 transition hover:border-white/[0.14] md:flex">
-        <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-        <input
-          type="text"
-          placeholder="Rechercher…"
-          className="w-full flex-1 bg-transparent text-sm text-gray-400 placeholder:text-gray-600"
-        />
-        <kbd className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-gray-600">⌘K</kbd>
-      </div>
-
       {/* ── Right actions ─────────────────────────────── */}
       <div className="flex items-center gap-1">
+        <LanguageSwitcher compact />
 
         {/* Notifications */}
         <div className="relative">
@@ -160,9 +150,6 @@ export function Header({ onMenuOpen }: HeaderProps) {
                     </div>
                   ))}
                 </div>
-                <div className="border-t border-white/8 px-4 py-2.5 text-center">
-                  <button className="text-xs text-soraBlue transition hover:text-blue-400">Tout voir</button>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -199,12 +186,13 @@ export function Header({ onMenuOpen }: HeaderProps) {
                   <p className="mt-0.5 text-xs text-gray-500">{user?.phone}</p>
                 </div>
                 <div className="p-2">
-                  <button className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-gray-300 transition hover:bg-white/[0.06] hover:text-white touch-feedback">
-                    <User className="h-4 w-4" /> Mon profil
-                  </button>
-                  <button className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-gray-300 transition hover:bg-white/[0.06] hover:text-white touch-feedback">
-                    <Settings className="h-4 w-4" /> Paramètres
-                  </button>
+                  <Link
+                    href="/parametres"
+                    onClick={closeAll}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-gray-300 transition hover:bg-white/[0.06] hover:text-white touch-feedback"
+                  >
+                    <Settings className="h-4 w-4" /> Configuration plateforme
+                  </Link>
                   <div className="my-1.5 h-px bg-white/8" />
                   <button
                     onClick={logout}

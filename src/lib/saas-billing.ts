@@ -38,7 +38,9 @@ export function computeAmount(
       base = plan.monthlyPrice
       break
     case BillingCycle.SCHOOL_YEAR:
-      base = plan.monthlyPrice * plan.schoolYearMonths * schoolYears
+      base = plan.annualPrice > 0
+        ? plan.annualPrice * schoolYears
+        : plan.monthlyPrice * plan.schoolYearMonths * schoolYears
       break
     case BillingCycle.ANNUAL:
       base = plan.annualPrice * schoolYears
@@ -74,19 +76,23 @@ export async function createSaaSInvoice(params: {
   currency: string
   dueDate: Date
   notes?: string
+  installationFee?: number
 }) {
   const number = await generateInvoiceNumber(params.institutionId)
+  const totalAmount = params.amount + (params.installationFee ?? 0)
   const invoice = await prisma.saaSInvoice.create({
     data: {
       institutionId: params.institutionId,
       subscriptionId: params.subscriptionId,
       planId: params.planId,
       number,
-      amount: params.amount,
+      amount: totalAmount,
       currency: params.currency,
       status: 'ISSUED',
       dueDate: params.dueDate,
-      notes: params.notes,
+      notes: params.notes ?? (params.installationFee
+        ? `Frais d'installation : ${params.installationFee.toLocaleString('fr-FR')} XOF + Abonnement annuel : ${params.amount.toLocaleString('fr-FR')} XOF`
+        : undefined),
     }
   })
   logger.info({ invoiceId: invoice.id, institutionId: params.institutionId }, '[Billing] Facture SaaS créée')

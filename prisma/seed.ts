@@ -12,10 +12,13 @@ import {
   SubscriptionStatus,
   UserRole
 } from '@prisma/client'
+import { seedCountryConfigsAndCurricula } from './seed-countries'
 
 const prisma = new PrismaClient()
 
 async function main() {
+  await seedCountryConfigsAndCurricula(prisma)
+
   await prisma.platformBranding.upsert({
     where: { id: 'default' },
     update: {
@@ -35,31 +38,34 @@ async function main() {
     }
   })
 
-  const [basic, premium, enterprise] = await Promise.all([
+  const [basic, premium] = await Promise.all([
     prisma.plan.upsert({
       where: { code: 'BASIC' },
       update: {
         name: 'Basic',
         tier: PlanTier.BASIC,
-        monthlyPrice: 55000,
-        annualPrice: 550000,
-        maxStudents: 300,
-        maxTeachers: 25,
+        installationFee: 200000,
+        monthlyPrice: 0,
+        annualPrice: 100000,
+        maxStudents: null,
+        maxTeachers: null,
         maxEstablishments: 1,
         canCreateBranches: false,
-        features: ['students', 'teachers', 'payments', 'documents'],
+        features: ['students', 'classes', 'teachers', 'attendance', 'grades', 'payments', 'documents', 'schedule', 'discipline', 'messages', 'reports', 'notifications', 'shop'],
         isActive: true
       },
       create: {
         name: 'Basic',
         code: 'BASIC',
         tier: PlanTier.BASIC,
-        monthlyPrice: 55000,
-        annualPrice: 550000,
-        maxStudents: 300,
-        maxTeachers: 25,
+        installationFee: 200000,
+        monthlyPrice: 0,
+        annualPrice: 100000,
+        maxStudents: null,
+        maxTeachers: null,
         maxEstablishments: 1,
-        features: ['students', 'teachers', 'payments', 'documents']
+        canCreateBranches: false,
+        features: ['students', 'classes', 'teachers', 'attendance', 'grades', 'payments', 'documents', 'schedule', 'discipline', 'messages', 'reports', 'notifications', 'shop']
       }
     }),
     prisma.plan.upsert({
@@ -67,55 +73,36 @@ async function main() {
       update: {
         name: 'Premium',
         tier: PlanTier.PREMIUM,
-        monthlyPrice: 125000,
-        annualPrice: 1250000,
-        maxStudents: 1200,
-        maxTeachers: 80,
-        maxEstablishments: 1,
-        canCreateBranches: false,
-        features: ['all_basic', 'pdf', 'cards', 'shop', 'messages', 'parent_portal'],
+        installationFee: 300000,
+        monthlyPrice: 0,
+        annualPrice: 500000,
+        maxStudents: null,
+        maxTeachers: null,
+        maxEstablishments: 10,
+        canCreateBranches: true,
+        features: ['all_basic', 'multi_establishment', 'group_dashboard', 'consolidated_reports', 'multi_direction'],
         isActive: true
       },
       create: {
         name: 'Premium',
         code: 'PREMIUM',
         tier: PlanTier.PREMIUM,
-        monthlyPrice: 125000,
-        annualPrice: 1250000,
-        maxStudents: 1200,
-        maxTeachers: 80,
-        maxEstablishments: 1,
-        features: ['all_basic', 'pdf', 'cards', 'shop', 'messages', 'parent_portal']
-      }
-    }),
-    prisma.plan.upsert({
-      where: { code: 'ENTERPRISE' },
-      update: {
-        name: 'Enterprise',
-        tier: PlanTier.ENTERPRISE,
-        monthlyPrice: 200000,
-        annualPrice: 2000000,
+        installationFee: 300000,
+        monthlyPrice: 0,
+        annualPrice: 500000,
         maxStudents: null,
         maxTeachers: null,
-        maxEstablishments: 20,
+        maxEstablishments: 10,
         canCreateBranches: true,
-        features: ['unlimited', 'multi_branch', 'advanced_security', 'api_mobile'],
-        isActive: true
-      },
-      create: {
-        name: 'Enterprise',
-        code: 'ENTERPRISE',
-        tier: PlanTier.ENTERPRISE,
-        monthlyPrice: 200000,
-        annualPrice: 2000000,
-        maxStudents: null,
-        maxTeachers: null,
-        maxEstablishments: 20,
-        canCreateBranches: true,
-        features: ['unlimited', 'multi_branch', 'advanced_security', 'api_mobile']
+        features: ['all_basic', 'multi_establishment', 'group_dashboard', 'consolidated_reports', 'multi_direction']
       }
     })
   ])
+
+  await prisma.plan.updateMany({
+    where: { code: { notIn: ['BASIC', 'PREMIUM'] } },
+    data: { isActive: false }
+  })
 
   await prisma.user.updateMany({
     where: { phone: '+22507000000001', role: UserRole.SUPER_ADMIN },
@@ -182,7 +169,7 @@ async function main() {
     create: {
       id: 'seed-iscf-subscription',
       institutionId: institution.id,
-      planId: enterprise.id,
+      planId: premium.id,
       status: SubscriptionStatus.ACTIVE,
       cycle: BillingCycle.ANNUAL,
       startsAt: new Date('2025-09-01'),
@@ -197,7 +184,7 @@ async function main() {
       id: 'seed-iscf-saas-payment-2026',
       institutionId: institution.id,
       subscriptionId: 'seed-iscf-subscription',
-      amount: enterprise.annualPrice,
+      amount: premium.annualPrice,
       currency: 'XOF',
       provider: PaymentProvider.BANK_TRANSFER,
       transactionRef: 'SEED-SCHOOL-2026-0001',
@@ -560,8 +547,15 @@ async function main() {
   for (const t of holidayTemplates) {
     await prisma.countryHolidayTemplate.upsert({
       where: { id: `${t.countryCode}-${t.title.toLowerCase().replace(/\s+/g, '-').slice(0, 40)}` },
-      update: t,
-      create: { ...t, id: `${t.countryCode}-${t.title.toLowerCase().replace(/\s+/g, '-').slice(0, 40)}` }
+      update: {
+        ...t,
+        description: 'Template indicatif à valider par le Super Admin avant publication officielle.'
+      },
+      create: {
+        ...t,
+        id: `${t.countryCode}-${t.title.toLowerCase().replace(/\s+/g, '-').slice(0, 40)}`,
+        description: 'Template indicatif à valider par le Super Admin avant publication officielle.'
+      }
     })
   }
   console.log(`Seed: ${holidayTemplates.length} templates calendrier créés`)

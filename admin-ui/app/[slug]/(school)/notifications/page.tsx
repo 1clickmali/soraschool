@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Bell,
@@ -23,8 +22,6 @@ const LEVEL_CONFIG: Record<string, { icon: React.ElementType; color: string; bg:
 };
 
 export default function NotificationsPage() {
-  const params = useParams();
-  const slug = params.slug as string;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);

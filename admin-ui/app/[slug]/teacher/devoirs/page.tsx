@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Download,
   Edit3,
-  FileSpreadsheet,
   Loader2,
   Plus,
   RefreshCw,
@@ -19,7 +18,6 @@ import {
 import {
   downloadProtectedFile,
   schoolApi,
-  schoolApiRequest,
   type Assignment,
   type GradePeriod,
   type Homework,
@@ -319,7 +317,7 @@ export default function DevoirsPage() {
                   </button>
                   <button onClick={() => exportNotes(homework)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20">
                     <Download className="h-4 w-4" />
-                    Notes CSV
+                    Évaluations CSV
                   </button>
                 </div>
               </motion.article>
@@ -363,7 +361,7 @@ export default function DevoirsPage() {
               </select>
             </div>
             <InfoBox label="Barème" value={`${selectedHomework?.maxScore || 20} points`} />
-            <InfoBox label="Élèves" value={`${correctionRows.length}`} />
+            <InfoBox label="Apprenants" value={`${correctionRows.length}`} />
           </div>
 
           <div className="max-h-[55vh] overflow-y-auto rounded-2xl border border-white/[0.07]">

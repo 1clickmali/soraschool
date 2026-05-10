@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Search, MessageSquare, Eye } from "lucide-react";
+import { GraduationCap, Search } from "lucide-react";
 import { schoolApiRequest, type Student } from "@/lib/school-api";
 import { cn } from "@/lib/utils";
 
@@ -49,9 +48,6 @@ function statusBadge(status: string) {
 }
 
 export default function MesElevesPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-
   const [classrooms, setClassrooms] = useState<{ id: string; name: string }[]>([]);
   const [students, setStudents] = useState<StudentWithClass[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +215,6 @@ export default function MesElevesPage() {
                     <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium uppercase tracking-wide hidden sm:table-cell">Classe</th>
                     <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium uppercase tracking-wide">Statut</th>
                     <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium uppercase tracking-wide hidden lg:table-cell">Parent</th>
-                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <AnimatePresence mode="wait">
@@ -255,16 +250,6 @@ export default function MesElevesPage() {
                         <td className="px-4 py-3">{statusBadge(s.status)}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell">
                           {s.parentPhone || s.guardianPhone || s.fatherPhone || "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5 justify-end">
-                            <button className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all">
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
                         </td>
                       </motion.tr>
                     ))}

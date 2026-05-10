@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
@@ -13,9 +12,11 @@ import {
   RefreshCw,
   Search,
   Upload,
+  Download,
   FileText,
   CreditCard,
   Briefcase,
+  Printer,
   Trash2,
 } from "lucide-react";
 import { downloadProtectedFile, schoolApi, type Teacher, type Subject, type Classroom, type CreateTeacherInput } from "@/lib/school-api";
@@ -110,8 +111,6 @@ function uniqueClasses(teacher: Teacher) {
 }
 
 export default function TeachersPage() {
-  const params = useParams();
-
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
@@ -180,14 +179,20 @@ export default function TeachersPage() {
     );
   });
 
-  const teacherPdf = async (teacher: Teacher, kind: "card" | "profile-pdf" | "contract-pdf") => {
+  const teacherPdf = async (
+    teacher: Teacher,
+    kind: "card" | "profile-pdf" | "contract-pdf",
+    mode: "download" | "open" | "print" = "download",
+    side: "front" | "back" | "both" = "both"
+  ) => {
     setActionMessage(null);
     const names = {
-      card: `carte-professeur-${teacher.matricule || teacher.id}.pdf`,
+      card: `carte-professeur-${teacher.matricule || teacher.id}-${side === "both" ? "recto-verso" : side === "front" ? "recto" : "verso"}.pdf`,
       "profile-pdf": `fiche-professeur-${teacher.matricule || teacher.id}.pdf`,
       "contract-pdf": `contrat-professeur-${teacher.matricule || teacher.id}.pdf`,
     };
-    const error = await downloadProtectedFile(`/api/teachers/${teacher.id}/${kind}`, names[kind], "download");
+    const endpoint = kind === "card" ? `/api/teachers/${teacher.id}/${kind}?side=${side}` : `/api/teachers/${teacher.id}/${kind}`;
+    const error = await downloadProtectedFile(endpoint, names[kind], mode);
     if (error) setActionMessage(error);
   };
 
@@ -460,11 +465,25 @@ export default function TeachersPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => void teacherPdf(t, "card")}
+                          onClick={() => void teacherPdf(t, "card", "open", "both")}
                           className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
-                          title="Télécharger carte professeur"
+                          title="Aperçu carte professeur recto-verso"
                         >
                           <CreditCard className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => void teacherPdf(t, "card", "print", "both")}
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-cyan-300 hover:bg-cyan-500/10 transition-colors"
+                          title="Imprimer carte professeur"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => void teacherPdf(t, "card", "download", "both")}
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-sky-300 hover:bg-sky-500/10 transition-colors"
+                          title="Télécharger carte professeur"
+                        >
+                          <Download className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => void teacherPdf(t, "profile-pdf")}

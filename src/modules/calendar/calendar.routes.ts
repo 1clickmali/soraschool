@@ -1,4 +1,3 @@
-import PDFDocument from 'pdfkit'
 import { Router, type Request } from 'express'
 import { z } from 'zod'
 import {
@@ -16,6 +15,13 @@ import { badRequest, forbidden, notFound } from '../../lib/errors'
 import { getParentScope } from '../../lib/parent-access'
 import { authenticate } from '../../middlewares/auth'
 import { validate } from '../../middlewares/validate'
+import {
+  addFooterToBufferedPages,
+  createProfessionalPdf,
+  drawKpiGrid,
+  drawProfessionalHeader,
+  drawSimpleTable
+} from '../pdf/pdf-layout'
 
 export const calendarRoutes = Router()
 calendarRoutes.use(authenticate)
@@ -498,19 +504,51 @@ calendarRoutes.get(
     const format = String(req.query.format ?? 'csv')
 
     if (format === 'pdf') {
-      const doc = new PDFDocument({ size: 'A4', margin: 36 })
+      const exportInstitutionId = req.institutionId
+        ?? (typeof req.query.institutionId === 'string' ? req.query.institutionId : undefined)
+        ?? events.find((event: any) => event.institutionId)?.institutionId
+      const institution = exportInstitutionId
+        ? await prisma.institution.findUnique({
+            where: { id: exportInstitutionId },
+            select: { name: true, country: true, city: true, address: true, phone: true, email: true }
+          })
+        : null
+      const generatedAt = new Date().toLocaleString('fr-FR')
+      const doc = createProfessionalPdf({ size: 'A4', margin: 36 })
       const chunks: Buffer[] = []
       doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
       const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))))
-      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(18).text('Calendrier scolaire', { align: 'center' })
-      doc.moveDown(0.5).font('Helvetica').fontSize(9).fillColor('#475569').text(`${rows.length} élément(s) exporté(s)`, { align: 'center' })
-      doc.moveDown()
-      rows.forEach((row, index) => {
-        if (doc.y > 740) doc.addPage()
-        doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(10).text(`${index + 1}. ${row.titre}`)
-        doc.fillColor('#475569').font('Helvetica').fontSize(8).text(`${row.type} · ${row.début} → ${row.fin} · ${row.classes || row.établissement}`)
-        if (row.description) doc.fillColor('#64748B').text(row.description, { width: 520 })
-        doc.moveDown(0.5)
+
+      drawProfessionalHeader(doc, {
+        title: 'Calendrier scolaire',
+        subtitle: `${rows.length} élément(s) exporté(s)`,
+        generatedAt,
+        brand: {
+          name: institution?.name ?? 'SoraSchool',
+          country: institution?.country,
+          city: institution?.city,
+          address: institution?.address,
+          phone: institution?.phone,
+          email: institution?.email
+        }
+      })
+      drawKpiGrid(doc, [
+        { label: 'Événements', value: String(rows.length) },
+        { label: 'Export', value: 'PDF' },
+        { label: 'Périmètre', value: req.user?.role === UserRole.SUPER_ADMIN ? 'Support' : 'École' }
+      ])
+      drawSimpleTable(doc, 'Liste des événements', rows, [
+        { header: 'Titre', width: 154, get: (row) => row.titre },
+        { header: 'Type', width: 80, get: (row) => row.type },
+        { header: 'Statut', width: 68, get: (row) => row.statut },
+        { header: 'Début', width: 74, get: (row) => row.début },
+        { header: 'Fin', width: 74, get: (row) => row.fin },
+        { header: 'Cible', width: 78, get: (row) => row.classes || row.établissement || '—' }
+      ])
+      addFooterToBufferedPages(doc, {
+        generatedAt,
+        generatorName: 'SoraSchool',
+        signatureLabel: 'Calendrier scolaire validé selon les informations disponibles.'
       })
       doc.end()
       const buffer = await done

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Building2, ImageIcon, Link, Palette, Save, Settings, Upload } from "lucide-react";
 import { schoolApi, type SchoolSettings } from "@/lib/school-api";
-import { SecureImage } from "@/components/ui/secure-image";
 import { resolveAssetUrl } from "@/lib/api-url";
 
 type AssetKey = "logoUrl" | "sealUrl" | "signatureUrl";
@@ -92,7 +91,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Paramètres</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Configuration</h1>
           <p className="text-gray-400 text-sm mt-1">Identité école, logo, couleurs premium, cachet, signature et informations officielles.</p>
         </div>
         <button onClick={save} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60">

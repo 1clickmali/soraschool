@@ -2,7 +2,7 @@ import { prisma } from '../config/prisma'
 import { logger } from './logger'
 import { sendSms } from './sms-internal'
 
-export type NotifChannel = 'IN_APP' | 'SMS' | 'PUSH'
+export type NotifChannel = 'IN_APP' | 'SMS' | 'PUSH' | 'WHATSAPP'
 
 interface NotifPayload {
   institutionId: string

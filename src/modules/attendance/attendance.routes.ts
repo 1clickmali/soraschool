@@ -16,7 +16,21 @@ attendanceRoutes.use(authenticate, requireTenantUser)
 
 const teacherPresenceAdminRoles = [UserRole.DIRECTOR, UserRole.ADMINISTRATION] as const
 
-const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+const DAY_NAMES: Record<number, string> = {
+  1: 'lundi',
+  2: 'mardi',
+  3: 'mercredi',
+  4: 'jeudi',
+  5: 'vendredi',
+  6: 'samedi',
+  7: 'dimanche'
+}
+
+function scheduleDayOfWeek(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value)
+  const day = date.getDay()
+  return day === 0 ? 7 : day
+}
 
 function dayRange(value: Date | string) {
   const date = value instanceof Date ? new Date(value) : new Date(value)
@@ -105,7 +119,7 @@ attendanceRoutes.get(
     const institutionId = req.institutionId!
     const dateStr = req.query.date ? String(req.query.date) : new Date().toISOString().split('T')[0]
     const { start, end } = dayRange(dateStr)
-    const dayOfWeek = new Date(dateStr).getDay()
+    const dayOfWeek = scheduleDayOfWeek(dateStr)
 
     let teacherIdFilter: string | undefined
     if (req.user!.role === UserRole.TEACHER) {
@@ -163,13 +177,14 @@ attendanceRoutes.post(
     const scheduleSlotId = req.body.scheduleSlotId
 
     const slot = await prisma.scheduleSlot.findFirst({
-      where: { id: scheduleSlotId, institutionId }
+      where: { id: scheduleSlotId, institutionId },
+      include: { classroom: { select: { id: true, name: true } } }
     })
     if (!slot) throw badRequest("Créneau d'emploi du temps introuvable")
 
     const { start, end, date } = dayRange(req.body.date)
 
-    const dateDayOfWeek = date.getDay()
+    const dateDayOfWeek = scheduleDayOfWeek(date)
     if (slot.dayOfWeek !== dateDayOfWeek) {
       throw badRequest(
         `Ce créneau est prévu le ${DAY_NAMES[slot.dayOfWeek]}, pas le ${DAY_NAMES[dateDayOfWeek]}`
@@ -187,6 +202,28 @@ attendanceRoutes.post(
     }
 
     const classroomId = slot.classroomId
+    const submittedStudentIds = Array.from(
+      new Set<string>(
+        (req.body.records as Array<{ studentId: string }>).map((record) => record.studentId)
+      )
+    )
+    if (submittedStudentIds.length === 0) {
+      throw badRequest("Aucun élève n'a été transmis pour cette séance")
+    }
+
+    const classroomStudents = await prisma.student.findMany({
+      where: {
+        institutionId,
+        classroomId,
+        id: { in: submittedStudentIds }
+      },
+      select: { id: true }
+    })
+    if (classroomStudents.length !== submittedStudentIds.length) {
+      throw badRequest(
+        `Tous les élèves saisis doivent appartenir à la classe ${slot.classroom.name} prévue par l'emploi du temps.`
+      )
+    }
 
     const session = await prisma.$transaction(async (tx) => {
       const sessions = await tx.attendanceSession.findMany({

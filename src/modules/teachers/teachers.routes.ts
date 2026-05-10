@@ -10,7 +10,8 @@ import { assertTeacherCapacity } from '../../lib/plan-limits'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
-import { renderTeacherCardPdf, renderTeacherContractPdf, renderTeacherProfilePdf } from '../pdf/pdf.service'
+import { renderTeacherCardPdf, renderTeacherContractPdf, renderTeacherProfilePdf, type CardSide } from '../pdf/pdf.service'
+import { ensureStaffForTeacher } from '../staff/staff.service'
 
 export const teachersRoutes = Router()
 teachersRoutes.use(authenticate, requireTenantUser)
@@ -184,6 +185,7 @@ teachersRoutes.post(
         include: { assignments: { include: { classroom: true, subject: true } } }
       })
     })
+    if (teacher?.id) await ensureStaffForTeacher(teacher.id, req.user!.id)
 
     res.status(201).json({
       teacher,
@@ -237,8 +239,10 @@ teachersRoutes.patch(
 
 teachersRoutes.get(
   '/:id/card',
+  requireRoles(UserRole.SUPER_ADMIN, ...managementRoles),
   asyncHandler(async (req, res) => {
-    const buffer = await renderTeacherCardPdf(req.institutionId!, req.params.id, String(req.query.lang ?? 'FR'))
+    const side = String(req.query.side ?? 'both') as CardSide
+    const buffer = await renderTeacherCardPdf(req.institutionId!, req.params.id, String(req.query.lang ?? 'FR'), side)
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="carte-professeur-${req.params.id}.pdf"`)
     res.send(buffer)

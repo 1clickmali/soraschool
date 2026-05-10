@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
 import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
-  ChevronRight,
   Clock,
-  CreditCard,
   Download,
   FileText,
   GraduationCap,
@@ -144,7 +142,6 @@ function SkeletonCard({ className }: { className?: string }) {
 /* ── MAIN PAGE ─────────────────────────────────────────────── */
 export default function ParentDashboardPage() {
   const pathname  = usePathname();
-  const params    = useParams();
   const view      = getPortalView(pathname);
 
   const [data, setData]       = useState<ParentDashboardData | null>(null);
@@ -205,10 +202,9 @@ export default function ParentDashboardPage() {
     const err = await downloadProtectedFile(`/api/grades/report-cards/${s.id}/${id}/pdf`, `bulletin-${s.matricule || s.id}-${periodName(g)}.pdf`, "open");
     if (err) showToast(err, false);
   };
-  const openStudentPdf = async (s: Student, kind: "enrollment-form" | "card" | "dossier") => {
+  const openStudentPdf = async (s: Student, kind: "enrollment-form" | "dossier") => {
     const names = {
       "enrollment-form": `fiche-inscription-${s.matricule || s.id}.pdf`,
-      card: `carte-identite-${s.matricule || s.id}.pdf`,
       dossier: `dossier-${s.matricule || s.id}.pdf`,
     };
     const err = await downloadProtectedFile(`/api/students/${s.id}/${kind}`, names[kind], "open");
@@ -383,7 +379,7 @@ export default function ParentDashboardPage() {
                 >
                   {view === "dashboard" && "Suivez la scolarité de vos enfants en temps réel."}
                   {view === "children" && "Dossier, présences et documents de chaque enfant."}
-                  {view === "grades" && "Notes publiées et bulletins PDF disponibles."}
+                  {view === "grades" && "Évaluations publiées et bulletins PDF disponibles."}
                   {view === "payments" && "Factures, reçus et suivi des paiements scolaires."}
                   {view === "reports" && "Envoyez un signalement ou une demande à l'école."}
                 </motion.p>
@@ -404,7 +400,7 @@ export default function ParentDashboardPage() {
                 className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"
               >
                 <HeroStat icon={GraduationCap} label="Enfants suivis" value={stats.children} color="text-amber-400" iconBg="bg-amber-400/15" />
-                <HeroStat icon={BookOpen} label="Notes publiées" value={stats.grades} color="text-blue-400" iconBg="bg-blue-400/15" />
+                <HeroStat icon={BookOpen} label="Évaluations publiées" value={stats.grades} color="text-blue-400" iconBg="bg-blue-400/15" />
                 <HeroStat icon={ReceiptText} label="Reçus payés" value={stats.payments} color="text-emerald-400" iconBg="bg-emerald-400/15" />
                 <HeroStat icon={AlertTriangle} label="Abs. / retards" value={stats.absences} color="text-rose-400" iconBg="bg-rose-400/15" />
               </motion.div>
@@ -469,7 +465,6 @@ export default function ParentDashboardPage() {
                         onOpenStudentPdf={openStudentPdf}
                         onOpenDocument={openDocument}
                         onOpenReportCard={openReportCard}
-                        onOpenReceipt={openReceipt}
                         onJustify={(a) => { setJustifyModal({ attendanceId: a.id, date: a.date }); setJustifyReason(""); }}
                       />
                     </motion.div>
@@ -515,14 +510,13 @@ function HeroStat({ icon: Icon, label, value, color, iconBg }: {
 /* ═══════════════════════════════════════════════════════════
    CHILD CARD
 ════════════════════════════════════════════════════════════ */
-function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, onOpenReportCard, onOpenReceipt, onJustify }: {
+function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, onOpenReportCard, onJustify }: {
   child: Student;
   docs: SchoolDocument[];
   showDetail: boolean;
-  onOpenStudentPdf: (s: Student, k: "enrollment-form" | "card" | "dossier") => void;
+  onOpenStudentPdf: (s: Student, k: "enrollment-form" | "dossier") => void;
   onOpenDocument: (d: SchoolDocument) => void;
   onOpenReportCard: (s: Student, g: Grade) => void;
-  onOpenReceipt: (id: string, num?: string) => void;
   onJustify: (a: AttendanceRecord) => void;
 }) {
   const finance = studentFinance(child);
@@ -606,7 +600,6 @@ function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, 
       {/* Quick actions */}
       <div className="flex gap-2 overflow-x-auto px-5 pb-4 scrollbar-none">
         <ActionChip icon={FileText} label="Fiche inscription" onClick={() => onOpenStudentPdf(child, "enrollment-form")} />
-        <ActionChip icon={CreditCard} label="Carte scolaire" onClick={() => onOpenStudentPdf(child, "card")} variant="gold" />
         <ActionChip icon={FileText} label="Attestation" onClick={() => downloadProtectedFile(`/api/grades/certificates/${child.id}/pdf?type=SCHOOL_CERTIFICATE`, `attestation-${child.matricule || child.id}.pdf`, "open")} variant="green" />
       </div>
 
@@ -616,7 +609,7 @@ function ChildCard({ child, docs, showDetail, onOpenStudentPdf, onOpenDocument, 
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-blue-400" />
-              <h3 className="text-sm font-semibold text-white">Notes & bulletins</h3>
+              <h3 className="text-sm font-semibold text-white">Évaluations & bulletins</h3>
             </div>
             {periods.length > 0 && (
               <div className="flex flex-wrap gap-1.5">

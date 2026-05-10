@@ -141,7 +141,7 @@ export default function DisciplinePage() {
         className="flex items-start justify-between mb-6"
       >
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Discipline</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Vie scolaire</h1>
           <p className="text-gray-400 text-sm mt-1">Signalements disciplinaires de vos élèves</p>
         </div>
         <button

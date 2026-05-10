@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
 import { PwaRegister } from "@/components/pwa/pwa-register";
+import { FloatingThemeSwitcher } from "@/components/theme/theme-switcher";
 import { BrandingProvider } from "@/lib/branding";
+import { ThemeBootScript, ThemeProvider } from "@/lib/theme";
 import { DEFAULT_BRANDING } from "@/lib/branding-defaults";
 import { getApiBaseUrl } from "@/lib/api-url";
 import type { PlatformBranding } from "@/lib/api";
@@ -80,12 +82,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className={`dark ${inter.variable} ${poppins.variable}`}>
+    <html lang="fr" data-scroll-behavior="smooth" className={`${inter.variable} ${poppins.variable}`} suppressHydrationWarning>
       <body className="bg-soraDark text-gray-100 font-sans antialiased">
-        <BrandingProvider>
-          <PwaRegister />
-          {children}
-        </BrandingProvider>
+        <ThemeBootScript />
+        <ThemeProvider>
+          <BrandingProvider>
+            <PwaRegister />
+            {children}
+            <FloatingThemeSwitcher />
+          </BrandingProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

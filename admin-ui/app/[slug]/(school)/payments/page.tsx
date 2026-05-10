@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DollarSign,
@@ -17,8 +16,11 @@ import {
   CreditCard,
   FileText,
   Receipt,
+  MessageCircle,
+  Smartphone,
+  Bell,
 } from "lucide-react";
-import { downloadProtectedFile, schoolApi, type Invoice, type Student, type Classroom, type CreateInvoiceInput, type RecordPaymentInput } from "@/lib/school-api";
+import { downloadProtectedFile, schoolApi, type Invoice, type Student, type Classroom, type CreateInvoiceInput, type ParentDocumentChannel, type RecordPaymentInput, type ShareParentDocumentBaseInput, type ShareParentDocumentInput } from "@/lib/school-api";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
@@ -105,9 +107,19 @@ function FormField({ label, required, children }: { label: string; required?: bo
   );
 }
 
-export default function PaymentsPage() {
-  const params = useParams();
+const SHARE_CHANNELS: Array<{ channel: ParentDocumentChannel; label: string; title: string; className: string; icon: typeof MessageCircle }> = [
+  { channel: "WHATSAPP", label: "WA", title: "Envoyer par WhatsApp", icon: MessageCircle, className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20" },
+  { channel: "SMS", label: "SMS", title: "Envoyer par SMS", icon: Smartphone, className: "border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" },
+  { channel: "IN_APP", label: "App", title: "Notifier dans l'application parent", icon: Bell, className: "border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20" },
+];
 
+function documentShareKey(input: ShareParentDocumentInput) {
+  if (input.documentType === "INVOICE") return `${input.documentType}:${input.invoiceId}:${input.channel}`;
+  if (input.documentType === "RECEIPT") return `${input.documentType}:${input.paymentId}:${input.channel}`;
+  return `${input.documentType}:${input.studentId}:${input.periodId}:${input.channel}`;
+}
+
+export default function PaymentsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
@@ -120,6 +132,7 @@ export default function PaymentsPage() {
   const [quickPaymentModal, setQuickPaymentModal] = useState(false);
   const [paymentModal, setPaymentModal] = useState<Invoice | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sharingKey, setSharingKey] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
@@ -229,6 +242,56 @@ export default function PaymentsPage() {
     if (error) setFormError(error);
   };
 
+  const handleShareParentDocument = async (input: ShareParentDocumentInput) => {
+    const key = documentShareKey(input);
+    setSharingKey(key);
+    setFormError(null);
+    setFormSuccess(null);
+
+    const { data, error } = await schoolApi.shareParentDocument(input);
+    setSharingKey(null);
+
+    if (error) {
+      setFormError(error);
+      return;
+    }
+
+    if (input.channel === "WHATSAPP") {
+      const firstLink = data?.recipients.find((recipient) => recipient.whatsappUrl)?.whatsappUrl;
+      if (firstLink) window.open(firstLink, "_blank", "noopener,noreferrer");
+      setFormSuccess("Message WhatsApp préparé avec le lien sécurisé du document.");
+      return;
+    }
+
+    const sentCount = data?.recipients.filter((recipient) => recipient.status === "SENT").length || 0;
+    setFormSuccess(input.channel === "SMS"
+      ? `SMS envoyé à ${sentCount} parent${sentCount > 1 ? "s" : ""}.`
+      : `Notification application envoyée à ${sentCount} parent${sentCount > 1 ? "s" : ""}.`
+    );
+  };
+
+  const renderShareButtons = (base: ShareParentDocumentBaseInput, label: string) => (
+    <div className="flex items-center gap-1">
+      {SHARE_CHANNELS.map(({ channel, label: channelLabel, title, icon: Icon, className }) => {
+        const input = { ...base, channel } as ShareParentDocumentInput;
+        const key = documentShareKey(input);
+        return (
+          <button
+            key={channel}
+            type="button"
+            title={`${title} (${label})`}
+            disabled={sharingKey === key}
+            onClick={() => void handleShareParentDocument(input)}
+            className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition disabled:cursor-wait disabled:opacity-50", className)}
+          >
+            {sharingKey === key ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
+            {channelLabel}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   const handleCreateInvoice = async () => {
     if (!invoiceForm.studentId) { setFormError("Veuillez sélectionner un élève"); return; }
     if (!invoiceForm.amount || invoiceForm.amount <= 0) { setFormError("Montant invalide"); return; }
@@ -298,7 +361,7 @@ export default function PaymentsPage() {
     <div>
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Frais & Paiements</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Finance</h1>
           <p className="text-gray-400 text-sm mt-1">Gestion des factures et paiements</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -441,7 +504,7 @@ export default function PaymentsPage() {
                       {inv.dueDate ? formatDate(inv.dueDate) : "—"}
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           onClick={() => downloadPdf(`/api/payments/invoices/${inv.id}/pdf`, `facture-${inv.number || inv.id}.pdf`, "open")}
                           className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/[0.05] text-gray-300 hover:bg-white/[0.09] border border-white/10 transition-all"
@@ -449,14 +512,18 @@ export default function PaymentsPage() {
                           <FileText className="w-3.5 h-3.5" />
                           Facture
                         </button>
+                        {renderShareButtons({ documentType: "INVOICE", invoiceId: inv.id }, "facture")}
                         {latestPayment?.id && (
-                          <button
-                            onClick={() => downloadPdf(latestPayment.receiptUrl || `/api/payments/${latestPayment.id}/receipt`, `recu-${latestPayment.receiptNumber || latestPayment.id}.pdf`, "open")}
-                            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/20 transition-all"
-                          >
-                            <Receipt className="w-3.5 h-3.5" />
-                            Reçu
-                          </button>
+                          <>
+                            <button
+                              onClick={() => downloadPdf(latestPayment.receiptUrl || `/api/payments/${latestPayment.id}/receipt`, `recu-${latestPayment.receiptNumber || latestPayment.id}.pdf`, "open")}
+                              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/20 transition-all"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                              Reçu
+                            </button>
+                            {renderShareButtons({ documentType: "RECEIPT", paymentId: latestPayment.id }, "reçu")}
+                          </>
                         )}
                         {(["PENDING", "ISSUED", "OVERDUE", "PARTIAL", "PARTIALLY_PAID", "DRAFT"].includes(inv.status)) && (
                           <button

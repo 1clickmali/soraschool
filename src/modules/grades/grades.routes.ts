@@ -9,11 +9,18 @@ import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
 import { renderReportCardPdf, renderStudentCertificatePdf } from '../pdf/pdf.service'
+import { parentAppUrl, shareParentDocument } from '../../lib/parent-document-share'
+import { sharedDocumentUrl } from '../../lib/shared-document-links'
 
 export const gradesRoutes = Router()
 gradesRoutes.use(authenticate, requireTenantUser)
 
 const managementRoles = [UserRole.DIRECTOR, UserRole.ADMINISTRATION, UserRole.SECRETARIAT] as const
+const parentShareBody = z.object({
+  body: z.object({
+    channel: z.enum(['WHATSAPP', 'SMS', 'IN_APP'])
+  })
+})
 
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
@@ -68,6 +75,79 @@ gradesRoutes.get(
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="bulletin-${req.params.studentId}-${req.params.periodId}.pdf"`)
     res.send(buffer)
+  })
+)
+
+gradesRoutes.post(
+  '/report-cards/:studentId/:periodId/share-parent',
+  requireRoles(...managementRoles, UserRole.TEACHER),
+  validate(parentShareBody),
+  asyncHandler(async (req, res) => {
+    const [student, period] = await Promise.all([
+      prisma.student.findFirst({
+        where: { id: req.params.studentId, institutionId: req.institutionId! },
+        include: {
+          classroom: true,
+          institution: { select: { slug: true, name: true } }
+        }
+      }),
+      prisma.gradePeriod.findFirst({
+        where: { id: req.params.periodId, institutionId: req.institutionId! }
+      })
+    ])
+    if (!student) throw notFound('Élève introuvable')
+    if (!period) throw notFound('Période introuvable')
+
+    if (req.user!.role === UserRole.TEACHER) {
+      const teacher = await prisma.teacher.findFirst({
+        where: { userId: req.user!.id, institutionId: req.institutionId! },
+        select: { id: true }
+      })
+      const allowed = teacher && student.classroomId
+        ? await prisma.teacherAssignment.findFirst({
+            where: {
+              institutionId: req.institutionId!,
+              teacherId: teacher.id,
+              classroomId: student.classroomId
+            },
+            select: { id: true }
+          })
+        : null
+      if (!allowed) throw forbidden("Vous ne pouvez envoyer que les bulletins de vos classes assignées")
+    }
+
+    const studentName = `${student.firstName} ${student.lastName}`.trim()
+    const documentUrl = sharedDocumentUrl({
+      type: 'REPORT_CARD',
+      institutionId: req.institutionId!,
+      studentId: student.id,
+      periodId: period.id
+    })
+    const appUrl = parentAppUrl(student.institution.slug, 'bulletins')
+    const message = [
+      `Bonjour, ${student.institution.name} vous informe que le bulletin de ${studentName} pour ${period.name} est disponible.`,
+      `PDF: ${documentUrl}`,
+      `Espace parent: ${appUrl}`
+    ].join(' ')
+
+    const payload = await shareParentDocument({
+      institutionId: req.institutionId!,
+      actorId: req.user!.id,
+      req,
+      studentId: student.id,
+      studentName,
+      documentType: 'REPORT_CARD',
+      entityId: `${student.id}:${period.id}`,
+      channel: req.body.channel,
+      title: `Bulletin ${period.name} — ${studentName}`,
+      body: `Le bulletin de ${studentName} pour ${period.name} est disponible.`,
+      message,
+      documentUrl,
+      appUrl,
+      metadata: { periodId: period.id, periodName: period.name, classroomId: student.classroomId }
+    })
+
+    res.json(payload)
   })
 )
 

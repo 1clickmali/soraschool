@@ -27,6 +27,7 @@ institutionsRoutes.get(
         id: true,
         name: true,
         slug: true,
+        code: true,
         kind: true,
         structure: true,
         status: true,

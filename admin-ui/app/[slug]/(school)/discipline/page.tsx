@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -77,8 +76,6 @@ function FormField({ label, required, children }: { label: string; required?: bo
 }
 
 export default function DisciplinePage() {
-  const params = useParams();
-
   const [records, setRecords] = useState<DisciplineRecord[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
@@ -147,7 +144,7 @@ export default function DisciplinePage() {
     <div>
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Discipline</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Vie scolaire</h1>
           <p className="text-gray-400 text-sm mt-1">Registre des incidents et sanctions</p>
         </div>
         <motion.button

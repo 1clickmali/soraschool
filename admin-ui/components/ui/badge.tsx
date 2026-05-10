@@ -59,12 +59,9 @@ const labelMap: Record<string, string> = {
   TRIAL: "Essai",
   SUSPENDED: "Suspendu",
   EXPIRED: "Expiré",
-  FREE: "Gratuit",
-  STARTER: "Starter",
-  GROWTH: "Croissance",
   BASIC: "Basic",
   PREMIUM: "Premium",
-  ENTERPRISE: "Entreprise",
+  ENTERPRISE: "Premium legacy",
 };
 
 export function Badge({ variant = "default", children, className, dot = false }: BadgeProps) {

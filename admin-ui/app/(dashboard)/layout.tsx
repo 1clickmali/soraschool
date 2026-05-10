@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isAuthenticated() && typeof window !== "undefined") return null;
 
   return (
-    <div className="flex min-h-screen bg-soraDark lg:h-screen lg:overflow-hidden">
+    <div className="sora-academy-shell flex min-h-screen bg-soraDark lg:h-screen lg:overflow-hidden">
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col lg:overflow-hidden">

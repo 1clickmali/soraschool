@@ -1,21 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2,
   Plus,
-  Users,
   GraduationCap,
   BookOpen,
   DollarSign,
   UserCog,
-  Phone,
-  Mail,
   MapPin,
   X,
-  ChevronRight,
   AlertCircle,
   CheckCircle,
   BarChart3,
@@ -314,8 +309,6 @@ function AssignDirectorModal({ school, onClose, onAssigned }: { school: CentralS
 }
 
 export default function EtablissementsPage() {
-  const params = useParams();
-  const slug = params.slug as string;
   const [schools, setSchools] = useState<CentralSchool[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -354,10 +347,11 @@ export default function EtablissementsPage() {
 
       {/* Global stats */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
         {[
           { label: "Établissements actifs", value: schools.length, icon: Building2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
           { label: "Total apprenants", value: totalStudents, icon: GraduationCap, color: "text-blue-400", bg: "bg-blue-500/10" },
+          { label: "Total enseignants", value: totalTeachers, icon: BookOpen, color: "text-purple-400", bg: "bg-purple-500/10" },
           { label: "Revenus cumulés", value: formatCurrency(totalRevenue), icon: DollarSign, color: "text-amber-400", bg: "bg-amber-500/10" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4">

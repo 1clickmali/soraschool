@@ -1,540 +1,112 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Carte Élève - {{etablissement_nom}}</title>
-<style>
-  /* ── RESET & BASE ─────────────────────────────────────── */
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; background: #f0f0f0; }
+  <meta charset="UTF-8" />
+  <title>Carte scolaire élève</title>
+  <style>
+    :root {
+      --navy: #06224a;
+      --blue: #0f6bff;
+      --light-blue: #eaf3ff;
+      --text: #101827;
+      --muted: #64748b;
+      --border: #dbe3ef;
+      --white: #ffffff;
+    }
 
-  /* ── CARTE CR80 : 85.6mm × 54mm → 323px × 204px @ 96dpi ─ */
-  .card-page {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    padding: 20px;
-  }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 30px; font-family: Arial, Helvetica, sans-serif; background: #f3f6fb; color: var(--text); }
+    .sheet-title { text-align: center; color: var(--navy); font-size: 26px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 30px; }
+    .cards-wrapper { display: flex; gap: 40px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+    .card-block { text-align: center; }
+    .caption { margin-top: 12px; font-size: 16px; font-weight: 700; color: var(--navy); }
+    .id-card { width: 430px; height: 270px; background: var(--white); border-radius: 14px; overflow: hidden; position: relative; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15); text-align: left; }
 
-  .card {
-    width: 323px;
-    height: 204px;
-    border-radius: 12px;
-    overflow: hidden;
-    position: relative;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-    flex-shrink: 0;
-  }
+    .top-shape { position: absolute; top: 0; left: 0; width: 145px; height: 70px; background: var(--navy); border-bottom-right-radius: 70px; z-index: 1; }
+    .top-shape::after { content: ""; position: absolute; right: -34px; top: 0; width: 75px; height: 70px; background: #1aa7e8; border-bottom-right-radius: 70px; z-index: -1; }
+    .logo { position: absolute; left: 28px; top: 12px; width: 54px; height: 54px; border: 2px solid rgba(255,255,255,0.75); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; z-index: 2; overflow: hidden; background: var(--navy); }
+    .logo img, .student-photo img, .qr-small img { width: 100%; height: 100%; object-fit: cover; }
+    .school-info { position: absolute; left: 165px; top: 22px; right: 20px; }
+    .school-name { font-size: 16px; font-weight: 800; color: var(--navy); text-transform: uppercase; line-height: 1.1; }
+    .school-year { margin-top: 4px; font-size: 13px; color: var(--blue); font-weight: 700; }
+    .student-photo { position: absolute; left: 26px; top: 86px; width: 118px; height: 112px; border-radius: 12px; border: 2px solid var(--border); background: #edf2f7; overflow: hidden; }
+    .card-title { position: absolute; left: 165px; top: 80px; right: 0; height: 38px; background: var(--navy); color: white; font-size: 21px; letter-spacing: 4px; font-weight: 800; display: flex; align-items: center; padding-left: 20px; text-transform: uppercase; }
+    .info-list { position: absolute; left: 165px; top: 126px; right: 34px; }
+    .info-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; font-size: 12.8px; border-bottom: 1px solid #e5ebf3; padding: 3px 0; }
+    .label { color: var(--blue); font-weight: 800; }
+    .value { color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bottom-curve { position: absolute; left: 80px; right: 0; bottom: 0; height: 72px; border-top: 1.5px solid #2d7df4; border-top-left-radius: 60px; background: rgba(255,255,255,0.7); pointer-events: none; }
+    .qr-small { position: absolute; left: 28px; bottom: 20px; width: 72px; height: 72px; border: 2px solid #d7e6ff; border-radius: 8px; background: white; padding: 5px; z-index: 3; }
+    .signature-box { position: absolute; right: 18px; bottom: 16px; width: 112px; height: 48px; border: 1.5px dashed #c7ced8; border-radius: 6px; color: var(--blue); font-size: 11px; font-weight: 700; display: flex; align-items: flex-start; justify-content: center; padding-top: 6px; z-index: 3; }
 
-  /* ══════════════════════════════════════════════════════
-     RECTO — Carte Identité Élève
-  ══════════════════════════════════════════════════════ */
-  .card-front {
-    background: linear-gradient(135deg, {{primary_color}} 0%, {{primary_dark}} 100%);
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
+    .back-header { height: 48px; background: var(--navy); color: white; display: flex; align-items: center; padding: 0 22px; gap: 12px; }
+    .back-icon { width: 32px; height: 32px; background: #1e8bff; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+    .back-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .back-content { padding: 14px 24px 0 24px; }
+    .back-row { display: grid; grid-template-columns: 32px 92px 1fr; gap: 10px; align-items: center; font-size: 12.4px; margin-bottom: 9px; }
+    .back-row .icon { color: var(--blue); font-size: 17px; text-align: center; }
+    .back-row .label { color: var(--navy); font-weight: 800; }
+    .back-row .value { color: var(--text); font-weight: 600; }
+    .divider { height: 1.5px; background: var(--blue); margin: 12px 0; opacity: 0.8; }
+    .section-title { color: var(--blue); font-size: 13px; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .notice { position: absolute; left: 20px; right: 20px; bottom: 36px; background: var(--light-blue); color: var(--navy); border-radius: 8px; padding: 8px 12px; font-size: 11.5px; font-weight: 600; text-align: center; }
+    .footer { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: var(--navy); color: white; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 
-  /* En-tête : logo + nom établissement */
-  .card-header {
-    background: rgba(255,255,255,0.12);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-bottom: 2px solid {{accent_color}};
-    min-height: 38px;
-    flex-shrink: 0;
-  }
-
-  .card-logo {
-    width: 26px;
-    height: 26px;
-    border-radius: 4px;
-    object-fit: contain;
-    background: white;
-    padding: 1px;
-    flex-shrink: 0;
-  }
-
-  .card-logo-placeholder {
-    width: 26px;
-    height: 26px;
-    border-radius: 4px;
-    background: {{accent_color}};
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 900;
-    color: {{primary_color}};
-    flex-shrink: 0;
-    letter-spacing: -0.5px;
-  }
-
-  .card-school-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .card-school-name {
-    font-size: 7.5px;
-    font-weight: 800;
-    color: white;
-    line-height: 1.2;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    word-wrap: break-word;
-  }
-
-  .card-year {
-    font-size: 6.5px;
-    color: {{accent_color}};
-    font-weight: 600;
-    margin-top: 1px;
-  }
-
-  .card-type-badge {
-    background: {{accent_color}};
-    color: {{primary_color}};
-    font-size: 6px;
-    font-weight: 900;
-    padding: 2px 5px;
-    border-radius: 3px;
-    letter-spacing: 0.5px;
-    flex-shrink: 0;
-  }
-
-  /* Corps : photo + identité + QR */
-  .card-body {
-    display: flex;
-    flex: 1;
-    padding: 6px 8px;
-    gap: 8px;
-    min-height: 0;
-  }
-
-  /* Photo */
-  .card-photo-zone {
-    width: 52px;
-    height: 68px;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 2px solid {{accent_color}};
-    background: rgba(255,255,255,0.1);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .card-photo-zone img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .card-photo-placeholder {
-    font-size: 7px;
-    color: rgba(255,255,255,0.5);
-    text-align: center;
-    line-height: 1.3;
-  }
-
-  /* Identité */
-  .card-identity {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
-
-  .card-name {
-    font-size: 9.5px;
-    font-weight: 900;
-    color: white;
-    line-height: 1.25;
-    word-wrap: break-word;
-    text-transform: uppercase;
-  }
-
-  .card-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-top: 4px;
-  }
-
-  .card-field {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .card-field-label {
-    font-size: 5.5px;
-    color: {{accent_color}};
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-
-  .card-field-value {
-    font-size: 7.5px;
-    color: white;
-    font-weight: 600;
-    word-wrap: break-word;
-    line-height: 1.2;
-  }
-
-  /* QR Code */
-  .card-qr-zone {
-    width: 44px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 3px;
-    flex-shrink: 0;
-  }
-
-  .card-qr-zone img {
-    width: 40px;
-    height: 40px;
-    border-radius: 3px;
-    background: white;
-    padding: 2px;
-  }
-
-  .card-qr-label {
-    font-size: 5px;
-    color: rgba(255,255,255,0.6);
-    text-align: center;
-  }
-
-  /* Pied de carte */
-  .card-footer {
-    background: {{accent_color}};
-    padding: 3px 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
-  .card-footer-label {
-    font-size: 6px;
-    font-weight: 900;
-    color: {{primary_color}};
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-  }
-
-  .card-motto {
-    font-size: 5.5px;
-    color: {{primary_color}};
-    font-style: italic;
-    text-align: right;
-    max-width: 140px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* ══════════════════════════════════════════════════════
-     VERSO — Informations officielles
-  ══════════════════════════════════════════════════════ */
-  .card-back {
-    background: {{secondary_color}};
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .card-back-header {
-    background: {{primary_color}};
-    padding: 5px 8px;
-    border-bottom: 2px solid {{accent_color}};
-    flex-shrink: 0;
-  }
-
-  .card-back-title {
-    font-size: 7px;
-    font-weight: 900;
-    color: white;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  .card-back-school {
-    font-size: 6px;
-    color: {{accent_color}};
-    font-weight: 600;
-    margin-top: 1px;
-    word-wrap: break-word;
-  }
-
-  .card-back-body {
-    flex: 1;
-    padding: 5px 8px;
-    display: flex;
-    gap: 8px;
-    min-height: 0;
-  }
-
-  .card-back-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-  }
-
-  .card-back-legal {
-    font-size: 5.5px;
-    color: #555;
-    line-height: 1.4;
-    font-style: italic;
-    margin-bottom: 4px;
-    border-left: 2px solid {{accent_color}};
-    padding-left: 4px;
-  }
-
-  .card-back-contact {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .card-back-contact-row {
-    font-size: 6px;
-    color: #333;
-    display: flex;
-    gap: 3px;
-    align-items: flex-start;
-    word-wrap: break-word;
-  }
-
-  .card-back-contact-label {
-    font-weight: 700;
-    color: {{primary_color}};
-    flex-shrink: 0;
-    min-width: 28px;
-  }
-
-  .card-back-contact-value {
-    color: #444;
-    word-break: break-all;
-  }
-
-  /* Barcode + QR zone au verso */
-  .card-back-codes {
-    width: 70px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  .card-back-qr img {
-    width: 36px;
-    height: 36px;
-    border: 1px solid #ddd;
-    border-radius: 2px;
-    background: white;
-    padding: 1px;
-  }
-
-  .card-back-barcode img {
-    width: 68px;
-    height: 22px;
-    object-fit: contain;
-    background: white;
-  }
-
-  .card-back-barcode-text {
-    font-size: 5px;
-    color: #666;
-    text-align: center;
-    letter-spacing: 0.5px;
-    font-family: monospace;
-  }
-
-  /* Pied du verso */
-  .card-back-footer {
-    background: {{primary_color}};
-    padding: 3px 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
-  .card-back-status {
-    font-size: 6px;
-    font-weight: 900;
-    color: {{accent_color}};
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-  }
-
-  .card-back-id {
-    font-size: 5.5px;
-    color: rgba(255,255,255,0.7);
-    font-family: monospace;
-  }
-
-  /* ── LABEL DE SÉPARATION ─────────────────────────────── */
-  .card-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #666;
-    text-align: center;
-    margin-bottom: 4px;
-  }
-</style>
+    @media print {
+      body { background: white; }
+      .sheet-title, .caption { display: none; }
+      .cards-wrapper { display: block; }
+      .card-block { page-break-after: always; margin-bottom: 20px; }
+      .id-card { box-shadow: none; }
+    }
+  </style>
 </head>
 <body>
-<div class="card-page">
-
-  <!-- ══ RECTO ══════════════════════════════════════════ -->
-  <p class="card-label">RECTO — Carte d'identité scolaire</p>
-  <div class="card card-front">
-
-    <!-- En-tête école -->
-    <div class="card-header">
-      <!-- Logo -->
-      {{#if logo_ecole}}
-      <img class="card-logo" src="{{logo_ecole}}" alt="Logo" onerror="this.style.display='none'">
-      {{else}}
-      <div class="card-logo-placeholder">{{acronyme}}</div>
-      {{/if}}
-
-      <div class="card-school-info">
-        <div class="card-school-name">{{etablissement_nom}}</div>
-        <div class="card-year">Année scolaire {{annee_scolaire}}</div>
+  <h1 class="sheet-title">Carte scolaire élève</h1>
+  <div class="cards-wrapper">
+    <div class="card-block">
+      <div class="id-card">
+        <div class="top-shape"></div>
+        <div class="logo"><img src="{{school_logo_url}}" alt="Logo école" /></div>
+        <div class="school-info">
+          <div class="school-name">{{school_name}}</div>
+          <div class="school-year">Année scolaire {{academic_year}}</div>
+        </div>
+        <div class="student-photo"><img src="{{student_photo_url}}" alt="Photo élève" /></div>
+        <div class="card-title">Carte scolaire</div>
+        <div class="info-list">
+          <div class="info-row"><span class="label">Nom :</span><span class="value">{{student_last_name}}</span></div>
+          <div class="info-row"><span class="label">Prénom :</span><span class="value">{{student_first_name}}</span></div>
+          <div class="info-row"><span class="label">Matricule :</span><span class="value">{{student_matricule}}</span></div>
+          <div class="info-row"><span class="label">Classe :</span><span class="value">{{student_class}}</span></div>
+          <div class="info-row"><span class="label">Cycle :</span><span class="value">{{student_cycle}}</span></div>
+          <div class="info-row"><span class="label">Né(e) le :</span><span class="value">{{student_birth_date}}</span></div>
+        </div>
+        <div class="bottom-curve"></div>
+        <div class="qr-small"><img src="{{student_qr_code_url}}" alt="QR code élève" /></div>
+        <div class="signature-box">Signature / Cachet</div>
       </div>
-      <div class="card-type-badge">ÉLÈVE</div>
+      <div class="caption">Carte Élève — Recto</div>
     </div>
 
-    <!-- Corps -->
-    <div class="card-body">
-
-      <!-- Photo élève -->
-      <div class="card-photo-zone">
-        {{#if photo_url}}
-        <img src="{{photo_url}}" alt="Photo élève">
-        {{else}}
-        <div class="card-photo-placeholder">PHOTO<br>ÉLÈVE</div>
-        {{/if}}
-      </div>
-
-      <!-- Identité -->
-      <div class="card-identity">
-        <div class="card-name">{{eleve_prenoms}} {{eleve_nom}}</div>
-        <div class="card-fields">
-          <div class="card-field">
-            <span class="card-field-label">Classe</span>
-            <span class="card-field-value">{{classe}}</span>
-          </div>
-          <div class="card-field">
-            <span class="card-field-label">Matricule</span>
-            <span class="card-field-value">{{matricule}}</span>
-          </div>
-          <div class="card-field">
-            <span class="card-field-label">Né(e) le</span>
-            <span class="card-field-value">{{date_naissance}}</span>
-          </div>
-          <div class="card-field">
-            <span class="card-field-label">ID Unique</span>
-            <span class="card-field-value" style="font-size:6px; font-family:monospace;">{{identifiant_unique}}</span>
-          </div>
+    <div class="card-block">
+      <div class="id-card">
+        <div class="back-header"><div class="back-icon">🏫</div><div class="back-title">Informations établissement</div></div>
+        <div class="back-content">
+          <div class="back-row"><span class="icon">📍</span><span class="label">Adresse :</span><span class="value">{{school_address}}</span></div>
+          <div class="back-row"><span class="icon">☎</span><span class="label">Téléphone :</span><span class="value">{{school_phone}}</span></div>
+          <div class="back-row"><span class="icon">✉</span><span class="label">Email :</span><span class="value">{{school_email}}</span></div>
+          <div class="back-row"><span class="icon">🌐</span><span class="label">Ville / Pays :</span><span class="value">{{school_city_country}}</span></div>
+          <div class="divider"></div>
+          <div class="section-title">👥 Contact parent / tuteur</div>
+          <div class="back-row"><span class="icon"></span><span class="label">Nom :</span><span class="value">{{parent_full_name}}</span></div>
+          <div class="back-row"><span class="icon"></span><span class="label">Téléphone :</span><span class="value">{{parent_phone}}</span></div>
         </div>
+        <div class="notice">En cas de perte, merci de retourner cette carte à l’établissement.</div>
+        <div class="footer">Document généré par <strong>&nbsp;SoraSchool</strong></div>
       </div>
-
-      <!-- QR Code -->
-      <div class="card-qr-zone">
-        <img src="{{qr_code}}" alt="QR Code">
-        <span class="card-qr-label">Scan<br>vérif.</span>
-      </div>
-
-    </div><!-- /.card-body -->
-
-    <!-- Pied -->
-    <div class="card-footer">
-      <span class="card-footer-label">Carte d'identité scolaire</span>
-      <span class="card-motto">{{devise_etablissement}}</span>
+      <div class="caption">Carte Élève — Verso</div>
     </div>
-
-  </div><!-- /.card-front -->
-
-  <!-- ══ VERSO ══════════════════════════════════════════ -->
-  <p class="card-label">VERSO — Informations officielles</p>
-  <div class="card card-back">
-
-    <!-- En-tête verso -->
-    <div class="card-back-header">
-      <div class="card-back-title">Informations Officielles</div>
-      <div class="card-back-school">{{etablissement_nom}}</div>
-    </div>
-
-    <!-- Corps verso -->
-    <div class="card-back-body">
-
-      <div class="card-back-info">
-        <!-- Texte légal -->
-        <p class="card-back-legal">
-          Cette carte est strictement personnelle. En cas de perte, veuillez contacter l'administration de l'établissement.
-        </p>
-        <!-- Contacts école -->
-        <div class="card-back-contact">
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Adresse :</span>
-            <span class="card-back-contact-value">{{etablissement_adresse}}</span>
-          </div>
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Tél. :</span>
-            <span class="card-back-contact-value">{{etablissement_telephone}}</span>
-          </div>
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Email :</span>
-            <span class="card-back-contact-value">{{etablissement_email}}</span>
-          </div>
-          <div class="card-back-contact-row">
-            <span class="card-back-contact-label">Web :</span>
-            <span class="card-back-contact-value">{{etablissement_site}}</span>
-          </div>
-        </div>
-        <div style="margin-top:3px; font-size:6px; color:{{primary_color}}; font-weight:700;">
-          Statut : <span style="color:#333;">{{statut_eleve}}</span>
-        </div>
-      </div>
-
-      <!-- Codes -->
-      <div class="card-back-codes">
-        <div class="card-back-qr">
-          <img src="{{qr_code}}" alt="QR vérification">
-        </div>
-        <div class="card-back-barcode">
-          <img src="{{barcode}}" alt="Code-barres">
-        </div>
-        <div class="card-back-barcode-text">{{matricule}}</div>
-      </div>
-
-    </div><!-- /.card-back-body -->
-
-    <!-- Pied verso -->
-    <div class="card-back-footer">
-      <span class="card-back-status">ÉLÈVE — {{statut_eleve}}</span>
-      <span class="card-back-id">{{identifiant_unique}}</span>
-    </div>
-
-  </div><!-- /.card-back -->
-
-</div><!-- /.card-page -->
+  </div>
 </body>
 </html>

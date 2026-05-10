@@ -1,160 +1,266 @@
-import PDFDocument from 'pdfkit'
 import type { Response } from 'express'
+import {
+  addFooterToBufferedPages,
+  createProfessionalPdf,
+  drawInfoRows,
+  drawKpiGrid,
+  drawMiniBarChart,
+  drawProfessionalHeader,
+  drawSectionTitle,
+  drawSignatureBlock,
+  drawSimpleTable,
+  safePdfFileName
+} from '../pdf/pdf-layout'
 
 interface ReportMeta {
   schoolName: string
   period: string
   generatedAt: string
   reportTitle: string
-  logoUrl?: string
+  country?: string | null
+  city?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
 }
 
 export type SectionData = Record<string, unknown>
 
 function formatNum(n: unknown): string {
-  if (typeof n !== 'number') return '—'
+  if (typeof n !== 'number') return '0'
   return n.toLocaleString('fr-FR')
 }
 
 function formatMoney(n: unknown): string {
-  if (typeof n !== 'number') return '—'
+  if (typeof n !== 'number') return '0 XOF'
   return `${n.toLocaleString('fr-FR')} XOF`
 }
 
+function percent(n: unknown): string {
+  if (typeof n !== 'number') return '—'
+  return `${n.toFixed(n % 1 === 0 ? 0 : 1)}%`
+}
+
+function shortDate(value: unknown) {
+  const date = value instanceof Date ? value : typeof value === 'string' ? new Date(value) : null
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('fr-FR') : '—'
+}
+
+function objectEntries(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.entries(value as Record<string, number>)
+    .map(([label, count]) => ({ label, value: Number(count) || 0 }))
+    .filter((row) => row.value > 0)
+}
+
+function numericRows(value: unknown, labelKey = 'label', valueKey = 'value') {
+  if (!Array.isArray(value)) return []
+  return (value as Array<Record<string, unknown>>)
+    .map((row) => ({
+      label: String(row[labelKey] ?? row.name ?? '—'),
+      value: Number(row[valueKey] ?? row.count ?? row.average ?? row.collected ?? row.incidents ?? 0)
+    }))
+    .filter((row) => row.label !== '—')
+}
+
 export async function streamReportPdf(res: Response, meta: ReportMeta, sections: Record<string, unknown>) {
-  const doc = new PDFDocument({ margin: 50, size: 'A4' })
+  const doc = createProfessionalPdf({ margin: 36, size: 'A4' })
 
   res.setHeader('Content-Type', 'application/pdf')
-  res.setHeader('Content-Disposition', `attachment; filename="${meta.reportTitle.replace(/\s+/g, '_')}.pdf"`)
+  res.setHeader('Content-Disposition', `attachment; filename="${safePdfFileName(meta.reportTitle)}.pdf"`)
   doc.pipe(res)
 
-  // ── COVER PAGE ────────────────────────────────────────────────────────────
-  const primary = '#064E3B'
-  const accent = '#C89B3C'
+  drawProfessionalHeader(doc, {
+    title: 'Rapport',
+    subtitle: meta.reportTitle.replace(/_/g, ' '),
+    generatedAt: meta.generatedAt,
+    brand: {
+      name: meta.schoolName,
+      address: meta.address,
+      city: meta.city,
+      country: meta.country,
+      phone: meta.phone,
+      email: meta.email
+    }
+  })
 
-  doc.rect(0, 0, doc.page.width, 120).fill(primary)
-  doc.fillColor('white').fontSize(22).font('Helvetica-Bold').text(meta.schoolName, 50, 30, { align: 'center' })
-  doc.fontSize(14).font('Helvetica').text(meta.reportTitle, 50, 65, { align: 'center' })
-  doc.fillColor(accent).fontSize(11).text(meta.period, 50, 90, { align: 'center' })
+  drawInfoRows(doc, [
+    { label: 'Période du rapport', value: meta.period },
+    { label: 'Établissement', value: meta.schoolName },
+    { label: 'Pays / ville', value: [meta.country, meta.city].filter(Boolean).join(' / ') || '—' }
+  ])
 
-  doc.fillColor('#333').fontSize(9).text(`Généré le ${meta.generatedAt}`, 50, 130, { align: 'right' })
-
-  doc.moveDown(2)
-
-  // ── HELPER: section title ────────────────────────────────────────────────
-  const sectionTitle = (title: string) => {
-    doc.moveDown(1)
-    doc.rect(50, doc.y, doc.page.width - 100, 22).fill(primary)
-    doc.fillColor('white').fontSize(11).font('Helvetica-Bold').text(title, 60, doc.y - 18)
-    doc.fillColor('#333').font('Helvetica').moveDown(0.5)
-  }
-
-  const row = (label: string, value: string) => {
-    const y = doc.y
-    doc.fontSize(9).fillColor('#555').text(label, 60, y)
-    doc.fillColor('#111').text(value, 300, y, { width: 200, align: 'right' })
-    doc.moveDown(0.4)
-  }
-
-  // ── SUMMARY ───────────────────────────────────────────────────────────────
   if (sections.summary) {
     const s = sections.summary as Record<string, unknown>
-    sectionTitle('A. Résumé général')
-    row('École', meta.schoolName)
-    row("Période d'analyse", meta.period)
-    row('Élèves actifs', formatNum(s.students))
-    row('Enseignants actifs', formatNum(s.teachers))
-    row('Classes', formatNum(s.classrooms))
-    row('Utilisateurs actifs', formatNum(s.activeUsers))
-    if (s.academicYear && typeof s.academicYear === 'object') {
-      const ay = s.academicYear as Record<string, unknown>
-      row('Année scolaire', String(ay.name ?? '—'))
-    }
+    const ay = s.academicYear && typeof s.academicYear === 'object' ? (s.academicYear as Record<string, unknown>) : null
+    drawSectionTitle(doc, 'A. Résumé général')
+    drawKpiGrid(doc, [
+      { label: 'Apprenants', value: formatNum(s.students) },
+      { label: 'Enseignants', value: formatNum(s.teachers) },
+      { label: 'Classes', value: formatNum(s.classrooms) },
+      { label: 'Utilisateurs actifs', value: formatNum(s.activeUsers) },
+      { label: 'Nouvelles inscriptions', value: formatNum(s.newStudentsThisPeriod) },
+      { label: 'Encaissements période', value: formatMoney(s.totalCollected) },
+      { label: 'Année scolaire', value: String(ay?.name ?? '—') }
+    ])
   }
 
-  // ── FINANCE ───────────────────────────────────────────────────────────────
   if (sections.finance) {
     const f = sections.finance as Record<string, unknown>
-    sectionTitle('B. Rapport financier')
-    row('Frais encaissés (période)', formatMoney(f.collected))
-    row('Total facturé', formatMoney(f.totalDue))
-    row('Total payé', formatMoney(f.totalPaid))
-    row('Reste à payer', formatMoney(f.remaining))
-    row('Factures en retard', formatNum(f.lateInvoices))
-    row('Factures générées', formatNum(f.invoicesGenerated))
+    drawSectionTitle(doc, 'B. Rapport financier')
+    drawKpiGrid(doc, [
+      { label: 'Frais encaissés', value: formatMoney(f.collected) },
+      { label: 'Total dû', value: formatMoney(f.totalDue) },
+      { label: 'Total payé', value: formatMoney(f.totalPaid) },
+      { label: 'Reste à payer', value: formatMoney(f.remaining) },
+      { label: 'Paiements en retard', value: formatNum(f.lateInvoices) },
+      { label: 'Factures générées', value: formatNum(f.invoicesGenerated) },
+      { label: 'Taux recouvrement', value: percent(f.collectionRate) }
+    ])
+    drawMiniBarChart(doc, 'Courbe des revenus mensuels', numericRows(f.monthlyTrend, 'label', 'collected'))
+    drawMiniBarChart(doc, 'Statut des factures', objectEntries(f.byStatus))
   }
 
-  // ── PEDAGOGY ──────────────────────────────────────────────────────────────
   if (sections.pedagogy) {
     const p = sections.pedagogy as Record<string, unknown>
-    sectionTitle('C. Rapport pédagogique')
-    row('Moyenne générale (/20)', typeof p.averageGrade === 'number' ? p.averageGrade.toFixed(2) : '—')
-    row('Taux de réussite', typeof p.successRate === 'number' ? `${p.successRate.toFixed(1)}%` : '—')
-    if (Array.isArray(p.bySubject) && p.bySubject.length) {
-      doc.moveDown(0.5).fontSize(9).fillColor('#444').text('Moyennes par matière :', 60)
-      doc.moveDown(0.3)
-      for (const subj of (p.bySubject as Array<Record<string, unknown>>).slice(0, 15)) {
-        row(String(subj.name ?? ''), typeof subj.average === 'number' ? subj.average.toFixed(2) : '—')
-      }
-    }
+    drawSectionTitle(doc, 'C. Rapport pédagogique')
+    drawKpiGrid(doc, [
+      { label: 'Moyenne générale', value: typeof p.averageGrade === 'number' ? `${p.averageGrade.toFixed(2)} / 20` : '—' },
+      { label: 'Taux de réussite', value: percent(p.successRate) },
+      { label: 'Évaluations', value: formatNum(p.totalEvaluations) }
+    ])
+    drawMiniBarChart(doc, 'Moyennes par classe', numericRows(p.byClassroom, 'name', 'average'))
+    drawMiniBarChart(doc, 'Performances par matière', numericRows(p.bySubject, 'name', 'average'))
+    drawSimpleTable(doc, 'Meilleurs apprenants', (Array.isArray(p.topStudents) ? p.topStudents : []) as Array<Record<string, unknown>>, [
+      { header: 'Apprenant', width: 320, get: (row) => row.name as string },
+      { header: 'Moyenne', width: 160, align: 'right', get: (row) => typeof row.average === 'number' ? row.average.toFixed(2) : '—' }
+    ])
+    drawSimpleTable(doc, 'Apprenants à soutenir', (Array.isArray(p.weakStudents) ? p.weakStudents : []) as Array<Record<string, unknown>>, [
+      { header: 'Apprenant', width: 320, get: (row) => row.name as string },
+      { header: 'Moyenne', width: 160, align: 'right', get: (row) => typeof row.average === 'number' ? row.average.toFixed(2) : '—' }
+    ])
   }
 
-  // ── ATTENDANCE ────────────────────────────────────────────────────────────
   if (sections.attendance) {
     const a = sections.attendance as Record<string, unknown>
-    sectionTitle('D. Rapport de présence')
-    row('Enregistrements valides', formatNum(a.total))
-    row('Présents', formatNum(a.present))
-    row('Absents', formatNum(a.absent))
-    row('Retards', formatNum(a.late))
-    row('Absences justifiées', formatNum(a.justified))
-    row('Absences non justifiées', formatNum(a.unjustified))
+    drawSectionTitle(doc, 'D. Rapport assiduité')
+    drawKpiGrid(doc, [
+      { label: 'Cours avec appel valide', value: formatNum(a.totalSessions) },
+      { label: 'Présences', value: formatNum(a.present) },
+      { label: 'Absences', value: formatNum(a.absent) },
+      { label: 'Retards', value: formatNum(a.late) },
+      { label: 'Justifiées', value: formatNum(a.justified) },
+      { label: 'Non justifiées', value: formatNum(a.unjustified) },
+      { label: "Taux d'assiduité", value: percent(a.attendanceRate) }
+    ])
+    drawMiniBarChart(doc, 'Absences par classe', numericRows(a.byClassroom, 'name', 'absent'))
+    drawMiniBarChart(doc, 'Absences par matière', numericRows(a.bySubject, 'name', 'absent'))
+    drawSimpleTable(doc, 'Apprenants les plus absents', (Array.isArray(a.mostAbsentStudents) ? a.mostAbsentStudents : []) as Array<Record<string, unknown>>, [
+      { header: 'Apprenant', width: 340, get: (row) => row.name as string },
+      { header: 'Absences', width: 140, align: 'right', get: (row) => row.count as number }
+    ])
   }
 
-  // ── TEACHERS ──────────────────────────────────────────────────────────────
   if (sections.teachers) {
     const t = sections.teachers as Record<string, unknown>
-    sectionTitle('E. Rapport enseignants')
-    row('Total enseignants actifs', formatNum(t.totalTeachers))
-    row('Créneaux programmés', formatNum(t.scheduledSlots))
-    row('Badgeages enregistrés', formatNum(t.totalBadges))
+    drawSectionTitle(doc, 'E. Rapport enseignants')
+    drawKpiGrid(doc, [
+      { label: 'Enseignants actifs', value: formatNum(t.totalTeachers) },
+      { label: 'Cours programmés', value: formatNum(t.scheduledSlots) },
+      { label: 'Badgeages', value: formatNum(t.totalBadges) },
+      { label: 'Taux ponctualité', value: percent(t.punctualityRate) }
+    ])
+    drawMiniBarChart(doc, 'Retards enseignants', numericRows(t.badgeStats, 'name', 'lateMinutes'))
+    drawMiniBarChart(doc, 'Volume de charges pédagogiques', numericRows(t.teacherLoad, 'name', 'assignmentsCount'))
   }
 
-  // ── DISCIPLINE ────────────────────────────────────────────────────────────
+  if (sections.staff) {
+    const s = sections.staff as Record<string, unknown>
+    drawSectionTitle(doc, 'I. Rapport personnel')
+    drawKpiGrid(doc, [
+      { label: 'Personnel actif', value: formatNum(s.totalStaff) },
+      { label: 'Présences', value: formatNum(s.present) },
+      { label: 'Retards', value: formatNum(s.late) },
+      { label: 'Absences', value: formatNum(s.absent) },
+      { label: 'Départs anticipés', value: formatNum(s.earlyDeparture) },
+      { label: 'Ponctualité', value: percent(s.punctualityRate) },
+      { label: 'Pénalités appliquées', value: formatNum(s.penaltiesApplied) },
+      { label: 'Montant pénalités', value: formatMoney(s.penaltyAmount) },
+      { label: 'Contrats actifs', value: formatNum(s.contractsActive) }
+    ])
+    drawMiniBarChart(doc, 'Personnel par rôle', objectEntries(s.byRole))
+    drawMiniBarChart(doc, 'Retards par personnel', numericRows(s.attendanceByStaff, 'name', 'late'))
+    drawMiniBarChart(doc, 'Absences par personnel', numericRows(s.attendanceByStaff, 'name', 'absent'))
+    if (s.payrollVisible) {
+      drawMiniBarChart(doc, 'Salaires nets estimés', numericRows(s.salaryByStaff, 'name', 'netSalary'))
+    }
+    drawSimpleTable(doc, 'Synthèse personnel', (Array.isArray(s.attendanceByStaff) ? s.attendanceByStaff : []) as Array<Record<string, unknown>>, [
+      { header: 'Personnel', width: 210, get: (row) => row.name as string },
+      { header: 'Prés.', width: 55, align: 'right', get: (row) => row.present as number },
+      { header: 'Ret.', width: 55, align: 'right', get: (row) => row.late as number },
+      { header: 'Abs.', width: 55, align: 'right', get: (row) => row.absent as number },
+      { header: 'Pénalités', width: 100, align: 'right', get: (row) => formatMoney(row.penalties) }
+    ])
+  }
+
   if (sections.discipline) {
     const d = sections.discipline as Record<string, unknown>
-    sectionTitle('F. Rapport vie scolaire / discipline')
-    row('Incidents enregistrés', formatNum(d.incidents))
-    row('Sanctions', formatNum(d.sanctions))
-    row('Récompenses', formatNum(d.rewards))
-    row('Score discipline moyen', typeof d.averageScore === 'number' ? d.averageScore.toFixed(1) : '—')
-    row('Élèves à risque', formatNum(d.atRiskStudents))
-    row('Élèves score < 60', formatNum(d.lowScoreStudents))
+    drawSectionTitle(doc, 'F. Rapport vie scolaire')
+    drawKpiGrid(doc, [
+      { label: 'Incidents', value: formatNum(d.incidents) },
+      { label: 'Sanctions', value: formatNum(d.sanctions) },
+      { label: 'Récompenses', value: formatNum(d.rewards) },
+      { label: 'Score moyen', value: typeof d.averageScore === 'number' ? d.averageScore.toFixed(1) : '—' },
+      { label: 'Apprenants à risque', value: formatNum(d.atRiskStudents) },
+      { label: 'Score < 60', value: formatNum(d.lowScoreStudents) }
+    ])
+    drawMiniBarChart(doc, 'Incidents par type', objectEntries(d.byKind))
+    drawMiniBarChart(doc, 'Évolution des incidents', numericRows(d.monthlyTrend, 'label', 'incidents'))
   }
 
-  // ── CALENDAR ─────────────────────────────────────────────────────────────
+  if (sections.administrative) {
+    const a = sections.administrative as Record<string, unknown>
+    drawSectionTitle(doc, 'G. Rapport administratif')
+    drawKpiGrid(doc, [
+      { label: 'Nouvelles inscriptions', value: formatNum(a.newStudents) },
+      { label: 'Admissions', value: formatNum(a.admissions) },
+      { label: 'Réinscriptions', value: formatNum(a.reEnrollments) },
+      { label: 'Transferts entrants', value: formatNum(a.transfersIn) },
+      { label: 'Départs / sorties', value: formatNum(a.departures) },
+      { label: 'Documents officiels', value: formatNum(a.officialDocuments) },
+      { label: 'Attestations', value: formatNum(a.attestationsGenerated) },
+      { label: 'Certificats', value: formatNum(a.certificatesGenerated) }
+    ])
+    drawMiniBarChart(doc, 'Documents officiels par type', objectEntries(a.byOfficialDocumentType))
+    drawSimpleTable(doc, 'Remplissage des classes', (Array.isArray(a.classroomEnrollments) ? a.classroomEnrollments : []) as Array<Record<string, unknown>>, [
+      { header: 'Classe', width: 250, get: (row) => row.name as string },
+      { header: 'Inscrits', width: 90, align: 'right', get: (row) => row.enrolled as number },
+      { header: 'Capacité', width: 90, align: 'right', get: (row) => row.capacity as number },
+      { header: 'Taux', width: 80, align: 'right', get: (row) => percent(row.fillRate) }
+    ])
+  }
+
   if (sections.calendar) {
     const c = sections.calendar as Record<string, unknown>
-    sectionTitle('H. Rapport calendrier')
-    row('Événements validés', formatNum(c.total))
-    if (c.byType && typeof c.byType === 'object') {
-      for (const [type, count] of Object.entries(c.byType as Record<string, number>)) {
-        row(type, formatNum(count))
-      }
-    }
+    drawSectionTitle(doc, 'H. Rapport calendrier scolaire')
+    drawKpiGrid(doc, [
+      { label: 'Événements validés', value: formatNum(c.total) },
+      { label: 'Jours concernés', value: formatNum(c.daysLost) }
+    ])
+    drawMiniBarChart(doc, 'Événements par type', objectEntries(c.byType))
+    drawSimpleTable(doc, 'Événements principaux', (Array.isArray(c.events) ? c.events : []) as Array<Record<string, unknown>>, [
+      { header: 'Titre', width: 220, get: (row) => row.title as string },
+      { header: 'Type', width: 100, get: (row) => row.type as string },
+      { header: 'Début', width: 95, get: (row) => shortDate(row.startsAt) },
+      { header: 'Fin', width: 95, get: (row) => shortDate(row.endsAt) }
+    ])
   }
 
-  // ── FOOTER ────────────────────────────────────────────────────────────────
-  doc.moveDown(3)
-  const footerY = doc.page.height - 70
-  doc.rect(50, footerY, doc.page.width - 100, 1).fill(accent)
-  doc.fillColor('#555').fontSize(8).text(
-    `Rapport généré automatiquement par SoraSchool — ${meta.generatedAt}`,
-    50,
-    footerY + 8,
-    { align: 'center' }
-  )
-  doc.text('Signature du Directeur : ______________________________', 50, footerY + 22, { align: 'right' })
-
+  drawSignatureBlock(doc, ['Visa Direction', 'Administration', 'Cachet établissement'])
+  addFooterToBufferedPages(doc, {
+    generatedAt: meta.generatedAt,
+    generatorName: 'SoraSchool',
+    signatureLabel: 'Rapport officiel à conserver dans les archives de l’établissement.'
+  })
   doc.end()
 }

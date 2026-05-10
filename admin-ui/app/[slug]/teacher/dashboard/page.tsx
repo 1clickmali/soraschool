@@ -124,7 +124,7 @@ export default function TeacherDashboardPage() {
     },
     {
       icon: Star,
-      label: "Notes saisies",
+      label: "Évaluations saisies",
       value: loading ? "…" : dashData?.gradesCount ?? 0,
       color: "bg-white/[0.03] border-white/[0.07]",
       iconColor: "bg-amber-500/20 text-amber-400",

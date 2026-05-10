@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
 import {
   BarChart2,
   FileDown,
@@ -20,6 +19,10 @@ import {
 import { schoolApi, schoolAuthApi, reportsApi, type ReportFilters, type ReportType, type ExportLog } from "@/lib/school-api";
 import { getSchoolToken } from "@/lib/school-auth";
 import { getApiBaseUrl } from "@/lib/api-url";
+import { FinanceChart } from "@/components/charts/finance-chart";
+import { AttendanceChart } from "@/components/charts/attendance-chart";
+import { GradesChart } from "@/components/charts/grades-chart";
+import { DisciplineChart } from "@/components/charts/discipline-chart";
 
 const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   DAILY: "Rapport journalier",
@@ -34,9 +37,10 @@ const REPORT_TYPE_LABELS: Record<ReportType, string> = {
 const SECTIONS = [
   { key: "summary", label: "Résumé général", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"] },
   { key: "finance", label: "Rapport financier", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ACCOUNTANT", "ADMINISTRATION"] },
-  { key: "pedagogy", label: "Pédagogie & notes", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"] },
-  { key: "attendance", label: "Présences élèves", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"] },
+  { key: "pedagogy", label: "Pédagogie & notes", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION", "TEACHER"] },
+  { key: "attendance", label: "Présences élèves", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION", "TEACHER"] },
   { key: "teachers", label: "Rapport enseignants", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"] },
+  { key: "staff", label: "Rapport personnel RH", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ACCOUNTANT", "SECRETARIAT", "ADMINISTRATION"] },
   { key: "discipline", label: "Vie scolaire / discipline", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"] },
   { key: "calendar", label: "Calendrier scolaire", roles: ["DIRECTOR", "CENTRAL_ADMIN", "ADMINISTRATION"] },
   { key: "administrative", label: "Administratif", roles: ["DIRECTOR", "CENTRAL_ADMIN", "SECRETARIAT", "ADMINISTRATION"] },
@@ -48,14 +52,13 @@ interface PreviewData {
   pedagogy?: Record<string, unknown>;
   attendance?: Record<string, unknown>;
   teachers?: Record<string, unknown>;
+  staff?: Record<string, unknown>;
   discipline?: Record<string, unknown>;
   calendar?: Record<string, unknown>;
   administrative?: Record<string, unknown>;
 }
 
 export default function RapportsPage() {
-  const { slug } = useParams() as { slug: string };
-
   const [userRole, setUserRole] = useState<string>("DIRECTOR");
   const [classrooms, setClassrooms] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -72,7 +75,7 @@ export default function RapportsPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const [exportLoading, setExportLoading] = useState<"pdf" | "excel" | "csv" | null>(null);
+  const [exportLoading, setExportLoading] = useState<"pdf" | "excel" | "macro-excel" | "csv" | null>(null);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
 
   const [history, setHistory] = useState<ExportLog[]>([]);
@@ -107,7 +110,7 @@ export default function RapportsPage() {
     setLoadingPreview(false);
   }, [filters, selectedSections]);
 
-  const doExport = async (format: "pdf" | "excel" | "csv") => {
+  const doExport = async (format: "pdf" | "excel" | "macro-excel" | "csv") => {
     setExportLoading(format);
     setExportSuccess(null);
     try {
@@ -122,7 +125,7 @@ export default function RapportsPage() {
         setPreviewError(err.message ?? "Erreur lors de l'export");
       } else {
         const blob = await res.blob();
-        const ext = format === "pdf" ? "pdf" : format === "excel" ? "xlsx" : "csv";
+      const ext = format === "pdf" ? "pdf" : format === "csv" ? "csv" : "xlsx";
         const fileName = `rapport_${f.reportType ?? "mensuel"}_${new Date().toISOString().slice(0, 10)}.${ext}`;
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -174,7 +177,7 @@ export default function RapportsPage() {
             <BarChart2 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Rapports & exports</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Rapports & statistiques</h1>
             <p className="text-sm text-gray-500">Générez et exportez vos rapports scolaires</p>
           </div>
         </div>
@@ -316,6 +319,14 @@ export default function RapportsPage() {
               Exporter Excel (.xlsx)
             </button>
             <button
+              onClick={() => doExport("macro-excel")}
+              disabled={!!exportLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition disabled:opacity-60"
+            >
+              {exportLoading === "macro-excel" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Macro Excel avancé
+            </button>
+            <button
               onClick={() => doExport("csv")}
               disabled={!!exportLoading}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-60"
@@ -358,7 +369,7 @@ export default function RapportsPage() {
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: "Élèves", value: fmt(previewData.summary.students) },
+                      { label: "Apprenants", value: fmt(previewData.summary.students) },
                       { label: "Enseignants", value: fmt(previewData.summary.teachers) },
                       { label: "Classes", value: fmt(previewData.summary.classrooms) },
                       { label: "Utilisateurs actifs", value: fmt(previewData.summary.activeUsers) },
@@ -378,13 +389,14 @@ export default function RapportsPage() {
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-yellow-500"></span>B. Rapport financier
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                     {[
                       { label: "Encaissé", value: fmtXOF(previewData.finance.collected), color: "text-emerald-700" },
                       { label: "Total facturé", value: fmtXOF(previewData.finance.totalDue), color: "text-blue-700" },
                       { label: "Reste à payer", value: fmtXOF(previewData.finance.remaining), color: "text-red-600" },
                       { label: "Factures retard", value: fmt(previewData.finance.lateInvoices), color: "text-orange-600" },
                       { label: "Factures générées", value: fmt(previewData.finance.invoicesGenerated), color: "text-gray-700" },
+                      { label: "Taux recouvrement", value: fmtPct(previewData.finance.collectionRate), color: "text-teal-700" },
                     ].map((kpi) => (
                       <div key={kpi.label} className="bg-gray-50 rounded-lg p-3">
                         <div className={`text-lg font-bold ${kpi.color}`}>{kpi.value}</div>
@@ -392,6 +404,12 @@ export default function RapportsPage() {
                       </div>
                     ))}
                   </div>
+                  {Array.isArray(previewData.finance.monthlyTrend) && (previewData.finance.monthlyTrend as unknown[]).length > 1 && (
+                    <div className="mt-4">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Encaissements mensuels</div>
+                      <FinanceChart data={(previewData.finance.monthlyTrend as Array<{ label: string; collected: number }>)} />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -434,6 +452,12 @@ export default function RapportsPage() {
                       </div>
                     </div>
                   )}
+                  {Array.isArray(previewData.pedagogy.gradeDistribution) && (previewData.pedagogy.gradeDistribution as unknown[]).length > 0 && (
+                    <div className="mt-4">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Distribution des notes</div>
+                      <GradesChart distribution={previewData.pedagogy.gradeDistribution as Array<{ label: string; count: number }>} />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -441,9 +465,9 @@ export default function RapportsPage() {
               {previewData.attendance && (
                 <div className="bg-white border rounded-xl p-5">
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-orange-500"></span>D. Présences élèves
+                    <span className="w-2 h-2 rounded-full bg-orange-500"></span>D. Assiduité apprenants
                   </h3>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
                     {[
                       { label: "Total", value: fmt(previewData.attendance.total), color: "bg-gray-50 text-gray-700" },
                       { label: "Présents", value: fmt(previewData.attendance.present), color: "bg-green-50 text-green-700" },
@@ -458,6 +482,12 @@ export default function RapportsPage() {
                       </div>
                     ))}
                   </div>
+                  {Array.isArray(previewData.attendance.dailyTrend) && (previewData.attendance.dailyTrend as unknown[]).length > 1 && (
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 mb-2">Évolution journalière</div>
+                      <AttendanceChart data={previewData.attendance.dailyTrend as Array<{ date: string; present: number; absent: number; late: number }>} />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -484,19 +514,57 @@ export default function RapportsPage() {
                 </div>
               )}
 
+              {/* Staff */}
+              {previewData.staff && (
+                <div className="bg-white border rounded-xl p-5">
+                  <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-sky-500"></span>I. Rapport personnel RH
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: "Personnel actif", value: fmt(previewData.staff.totalStaff), color: "bg-sky-50 text-sky-700" },
+                      { label: "Présences", value: fmt(previewData.staff.present), color: "bg-emerald-50 text-emerald-700" },
+                      { label: "Retards", value: fmt(previewData.staff.late), color: "bg-amber-50 text-amber-700" },
+                      { label: "Absences", value: fmt(previewData.staff.absent), color: "bg-red-50 text-red-700" },
+                      { label: "Ponctualité", value: fmtPct(previewData.staff.punctualityRate), color: "bg-blue-50 text-blue-700" },
+                      { label: "Pénalités", value: fmtXOF(previewData.staff.penaltyAmount), color: "bg-orange-50 text-orange-700" },
+                      { label: "Contrats actifs", value: fmt(previewData.staff.contractsActive), color: "bg-indigo-50 text-indigo-700" },
+                      { label: "Masse nette", value: fmtXOF(previewData.staff.netSalary), color: "bg-emerald-50 text-emerald-800" },
+                    ].map((kpi) => (
+                      <div key={kpi.label} className={`${kpi.color} rounded-lg p-3 text-center`}>
+                        <div className="text-xl font-bold">{kpi.value}</div>
+                        <div className="text-xs mt-0.5 opacity-70">{kpi.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {Array.isArray(previewData.staff.attendanceByStaff) && (
+                    <div className="space-y-1.5">
+                      {(previewData.staff.attendanceByStaff as Array<Record<string, unknown>>).slice(0, 8).map((member, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_80px_80px_80px] gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                          <span className="truncate text-gray-800">{String(member.name)}</span>
+                          <span className="text-amber-700">{String(member.late ?? 0)} retard(s)</span>
+                          <span className="text-red-700">{String(member.absent ?? 0)} absence(s)</span>
+                          <span className="text-gray-600">{fmtXOF(member.penalties)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Discipline */}
               {previewData.discipline && (
                 <div className="bg-white border rounded-xl p-5">
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-red-500"></span>F. Vie scolaire / Discipline
+                    <span className="w-2 h-2 rounded-full bg-red-500"></span>F. Vie scolaire
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {[
                       { label: "Incidents", value: fmt(previewData.discipline.incidents), color: "bg-red-50 text-red-700" },
                       { label: "Sanctions", value: fmt(previewData.discipline.sanctions), color: "bg-orange-50 text-orange-700" },
                       { label: "Récompenses", value: fmt(previewData.discipline.rewards), color: "bg-green-50 text-green-700" },
                       { label: "Score moyen", value: typeof previewData.discipline.averageScore === "number" ? `${previewData.discipline.averageScore.toFixed(0)}/100` : "—", color: "bg-blue-50 text-blue-700" },
-                      { label: "Élèves à risque", value: fmt(previewData.discipline.atRiskStudents), color: "bg-red-50 text-red-600" },
+                      { label: "Apprenants à risque", value: fmt(previewData.discipline.atRiskStudents), color: "bg-red-50 text-red-600" },
                       { label: "Score < 60", value: fmt(previewData.discipline.lowScoreStudents), color: "bg-yellow-50 text-yellow-700" },
                     ].map((kpi) => (
                       <div key={kpi.label} className={`${kpi.color} rounded-lg p-3 text-center`}>
@@ -505,6 +573,51 @@ export default function RapportsPage() {
                       </div>
                     ))}
                   </div>
+                  {Array.isArray(previewData.discipline.monthlyTrend) && (previewData.discipline.monthlyTrend as unknown[]).length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 mb-2">Incidents par mois</div>
+                      <DisciplineChart data={previewData.discipline.monthlyTrend as Array<{ label: string; incidents: number }>} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Administrative */}
+              {previewData.administrative && (
+                <div className="bg-white border rounded-xl p-5">
+                  <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-teal-500"></span>G. Rapport administratif
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: "Inscriptions", value: fmt(previewData.administrative.newStudents), color: "bg-teal-50 text-teal-700" },
+                      { label: "Admissions", value: fmt(previewData.administrative.admissions), color: "bg-emerald-50 text-emerald-700" },
+                      { label: "Réinscriptions", value: fmt(previewData.administrative.reEnrollments), color: "bg-blue-50 text-blue-700" },
+                      { label: "Transferts", value: fmt(previewData.administrative.transfersIn), color: "bg-indigo-50 text-indigo-700" },
+                      { label: "Départs", value: fmt(previewData.administrative.departures), color: "bg-orange-50 text-orange-700" },
+                      { label: "Documents", value: fmt(previewData.administrative.documents), color: "bg-gray-50 text-gray-700" },
+                      { label: "Attestations", value: fmt(previewData.administrative.attestationsGenerated), color: "bg-cyan-50 text-cyan-700" },
+                      { label: "Certificats", value: fmt(previewData.administrative.certificatesGenerated), color: "bg-sky-50 text-sky-700" },
+                    ].map((kpi) => (
+                      <div key={kpi.label} className={`${kpi.color} rounded-lg p-3 text-center`}>
+                        <div className="text-xl font-bold">{kpi.value}</div>
+                        <div className="text-xs mt-0.5 opacity-70">{kpi.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {Array.isArray(previewData.administrative.classroomEnrollments) && (
+                    <div className="space-y-1.5">
+                      {(previewData.administrative.classroomEnrollments as Array<Record<string, unknown>>).slice(0, 8).map((cls, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <span className="text-sm text-gray-700 w-40 truncate">{String(cls.name)}</span>
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-teal-500 rounded-full" style={{ width: `${Math.min(100, Number(cls.fillRate ?? 0))}%` }} />
+                          </div>
+                          <span className="text-xs font-medium text-teal-700 w-20 text-right">{String(cls.enrolled ?? 0)} élèves</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

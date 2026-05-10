@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { MessageSquare, Send, Plus, Users, User, Building2 } from "lucide-react";
 import { schoolApi, schoolApiRequest, type Conversation } from "@/lib/school-api";
 import { cn } from "@/lib/utils";

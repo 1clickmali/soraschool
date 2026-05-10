@@ -1,173 +1,133 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { LogIn, LogOut, Clock, CheckCircle, AlertTriangle, Calendar, RefreshCw } from "lucide-react";
-import { schoolApi, type TeacherBadge } from "@/lib/school-api";
-import { cn, formatDate } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Calendar, CheckCircle, Clock, LogIn, LogOut, RefreshCw } from "lucide-react";
+import { schoolApi, type StaffAttendance } from "@/lib/school-api";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
-function formatTime(dateStr?: string) {
+function formatTime(dateStr?: string | null) {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function todayKey() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function TeacherPointagePage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  const [badges, setBadges] = useState<TeacherBadge[]>([]);
-  const [today, setToday] = useState<TeacherBadge | null>(null);
+  const [records, setRecords] = useState<StaffAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [noScheduleReason, setNoScheduleReason] = useState("");
 
   const load = async () => {
     setLoading(true);
-    const [myRes, monthRes] = await Promise.all([
-      schoolApi.teacherBadges({ date: new Date().toISOString().split("T")[0] }),
-      schoolApi.myBadges(),
-    ]);
-    if (myRes.data?.badges) setToday(myRes.data.badges[0] ?? null);
-    if (monthRes.data?.badges) setBadges(monthRes.data.badges);
+    const { data, error } = await schoolApi.staffAttendanceMe();
+    if (data?.records) setRecords(data.records);
+    if (error) setMsg({ type: "err", text: error });
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [slug]);
+  useEffect(() => { load(); }, []);
 
-  const showMsg = (type: "ok" | "err", text: string) => {
-    setMsg({ type, text });
-    setTimeout(() => setMsg(null), 4000);
-  };
+  const today = useMemo(() => records.find((record) => record.date.startsWith(todayKey())) ?? null, [records]);
+  const eventsToJustify = records.filter((record) => ["LATE", "ABSENT", "EARLY_DEPARTURE"].includes(record.status) && record.justificationStatus !== "ACCEPTED");
 
-  const handleCheckIn = async () => {
+  const point = async () => {
     setActionLoading(true);
-    const { data, error } = await schoolApi.teacherCheckIn();
-    if (error) showMsg("err", error);
-    else if (data) { setToday(data.badge); showMsg("ok", "Pointage d'entrée enregistré !"); }
+    setMsg(null);
+    const { data, error } = await schoolApi.scanStaffAttendance(undefined, noScheduleReason);
     setActionLoading(false);
-  };
-
-  const handleCheckOut = async () => {
-    setActionLoading(true);
-    const { data, error } = await schoolApi.teacherCheckOut();
-    if (error) showMsg("err", error);
-    else if (data) { setToday(data.badge); showMsg("ok", "Pointage de sortie enregistré !"); }
-    setActionLoading(false);
+    setMsg(error ? { type: "err", text: error } : { type: "ok", text: data?.message ?? "Pointage enregistré." });
+    load();
   };
 
   const now = new Date();
   const todayLabel = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-  const timeLabel = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="min-h-screen bg-soraDark text-white pb-24">
-      <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
-
-        <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="p-2 rounded-xl bg-blue-500/15">
-              <Clock className="w-5 h-5 text-blue-400" />
-            </div>
-            <h1 className="text-xl font-bold font-heading">Mon pointage</h1>
+    <div className="min-h-screen bg-soraDark pb-24 text-white">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-blue-500/15 p-2.5"><Clock className="h-6 w-6 text-blue-300" /></div>
+          <div>
+            <h1 className="font-heading text-2xl font-bold">Mon pointage</h1>
+            <p className="text-sm capitalize text-gray-400">{todayLabel}</p>
           </div>
-          <p className="text-sm text-gray-400 capitalize ml-12">{todayLabel} · {timeLabel}</p>
-        </motion.div>
+        </div>
 
         {msg && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className={cn("flex items-center gap-2 p-3 rounded-xl text-sm",
-              msg.type === "ok" ? "bg-emerald-500/15 border border-emerald-500/25 text-emerald-300" : "bg-red-500/15 border border-red-500/25 text-red-300"
-            )}>
-            {msg.type === "ok" ? <CheckCircle className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-            {msg.text}
-          </motion.div>
+          <div className={cn("flex items-center gap-2 rounded-xl border p-3 text-sm", msg.type === "ok" ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300" : "border-red-500/25 bg-red-500/10 text-red-300")}>
+            {msg.type === "ok" ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />} {msg.text}
+          </div>
         )}
 
-        {/* Today card */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6">
-          <p className="text-sm text-gray-400 font-medium uppercase tracking-wide mb-4">Aujourd'hui</p>
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="text-center p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <LogIn className="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-emerald-400">{formatTime(today?.checkInAt)}</p>
-              <p className="text-xs text-gray-500 mt-1">Entrée</p>
-              {(today?.lateMinutes ?? 0) > 0 && (
-                <p className="text-xs text-amber-400 mt-1">{today!.lateMinutes} min retard</p>
-              )}
+        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-6">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Aujourd'hui</p>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+              <LogIn className="mx-auto mb-2 h-5 w-5 text-emerald-300" />
+              <p className="text-2xl font-bold text-emerald-300">{formatTime(today?.actualCheckInAt)}</p>
+              <p className="text-xs text-gray-500">Arrivée</p>
             </div>
-            <div className="text-center p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-              <LogOut className="w-5 h-5 text-blue-400 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-blue-400">{formatTime(today?.checkOutAt)}</p>
-              <p className="text-xs text-gray-500 mt-1">Sortie</p>
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 text-center">
+              <LogOut className="mx-auto mb-2 h-5 w-5 text-blue-300" />
+              <p className="text-2xl font-bold text-blue-300">{formatTime(today?.actualCheckOutAt)}</p>
+              <p className="text-xs text-gray-500">Départ</p>
+            </div>
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-center">
+              <AlertTriangle className="mx-auto mb-2 h-5 w-5 text-amber-300" />
+              <p className="text-2xl font-bold text-amber-300">{today?.lateMinutes ?? 0} min</p>
+              <p className="text-xs text-gray-500">Retard</p>
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={handleCheckIn}
-              disabled={actionLoading || !!today?.checkInAt}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all",
-                today?.checkInAt
-                  ? "bg-gray-700/40 text-gray-500 cursor-not-allowed"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white"
-              )}
-            >
-              {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-              {today?.checkInAt ? "Déjà pointé" : "Pointer l'entrée"}
-            </button>
-            <button
-              onClick={handleCheckOut}
-              disabled={actionLoading || !today?.checkInAt || !!today?.checkOutAt}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all",
-                !today?.checkInAt || today?.checkOutAt
-                  ? "bg-gray-700/40 text-gray-500 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-500 text-white"
-              )}
-            >
-              {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-              {today?.checkOutAt ? "Sorti" : "Pointer la sortie"}
-            </button>
+          <button disabled={actionLoading || !!today?.actualCheckOutAt} onClick={point} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-4 text-base font-bold text-white transition hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400">
+            {actionLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : today?.actualCheckInAt ? <LogOut className="h-5 w-5" /> : <LogIn className="h-5 w-5" />}
+            {today?.actualCheckOutAt ? "Pointage complet aujourd'hui" : today?.actualCheckInAt ? "Pointer le départ" : "Pointer l'arrivée"}
+          </button>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Justification si aucun cours n’est programmé
+            </label>
+            <textarea
+              value={noScheduleReason}
+              onChange={(event) => setNoScheduleReason(event.target.value)}
+              rows={3}
+              placeholder="Ex : réunion avec la Direction, remplacement, préparation de cours..."
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+            />
+            <p className="mt-2 text-xs text-gray-500">Sans emploi du temps, le pointage est refusé si cette justification est vide.</p>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Monthly history */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/[0.07] flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-semibold text-gray-300">Ce mois</span>
+        {eventsToJustify.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4">
+            <div className="flex items-center gap-2 font-semibold text-amber-200"><AlertTriangle className="h-4 w-4" /> Justification requise</div>
+            <p className="mt-2 text-sm text-amber-100/80">{eventsToJustify.length} événement(s) peuvent entraîner une pénalité. Envoyez une justification depuis “Mes justifications”.</p>
           </div>
+        )}
+
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03]">
+          <div className="flex items-center gap-2 border-b border-white/[0.07] px-5 py-4"><Calendar className="h-4 w-4 text-gray-400" /><span className="text-sm font-semibold text-gray-300">Historique récent</span></div>
           {loading ? (
-            <div className="flex items-center justify-center py-8 gap-2 text-gray-400">
-              <RefreshCw className="w-4 h-4 animate-spin" /><span className="text-sm">Chargement…</span>
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-400"><RefreshCw className="h-4 w-4 animate-spin" /> Chargement...</div>
+          ) : records.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-500">Aucun pointage.</div>
+          ) : records.map((record) => (
+            <div key={record.id} className="flex items-center justify-between border-b border-white/[0.05] px-5 py-3 text-sm last:border-b-0">
+              <div>
+                <p className="font-medium">{formatDate(record.date)}</p>
+                <p className="text-xs text-gray-500">{record.status} · {record.noScheduleReason || record.justificationStatus}</p>
+              </div>
+              <div className="text-right text-xs text-gray-400">
+                <p>{formatTime(record.actualCheckInAt)} → {formatTime(record.actualCheckOutAt)}</p>
+                <p>{record.penaltyAmount ? formatCurrency(record.penaltyAmount) : "Aucune pénalité"}</p>
+              </div>
             </div>
-          ) : badges.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">Aucun pointage ce mois.</div>
-          ) : (
-            <div className="divide-y divide-white/[0.05] max-h-64 overflow-y-auto">
-              {badges.map((badge) => (
-                <div key={badge.id} className="flex items-center justify-between px-5 py-2.5">
-                  <p className="text-sm text-gray-300">{formatDate(badge.date)}</p>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className={cn(badge.checkInAt ? "text-emerald-400" : "text-gray-600")}>
-                      ▸ {formatTime(badge.checkInAt)}
-                    </span>
-                    <span className={cn(badge.checkOutAt ? "text-blue-400" : "text-gray-600")}>
-                      ◂ {formatTime(badge.checkOutAt)}
-                    </span>
-                    {(badge.lateMinutes ?? 0) > 0 && (
-                      <span className="text-amber-400">{badge.lateMinutes}min</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </motion.div>
-
+          ))}
+        </div>
       </div>
     </div>
   );

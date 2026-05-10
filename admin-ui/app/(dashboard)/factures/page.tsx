@@ -291,7 +291,7 @@ export default function FacturesPage() {
         className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
       >
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Factures SaaS</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Finance SaaS</h1>
           <p className="text-gray-400 text-sm mt-0.5">
             Gestion des factures d&apos;abonnement des établissements
           </p>

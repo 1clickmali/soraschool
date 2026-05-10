@@ -190,13 +190,14 @@ export default function StudentDetailPage() {
   const paidAmount = useMemo(() => (student?.invoices || []).reduce((sum, invoice) => sum + (invoice.paidAmount || 0), 0), [student]);
   const dueAmount = useMemo(() => (student?.invoices || []).reduce((sum, invoice) => sum + Math.max((invoice.totalAmount || invoice.amount || 0) - (invoice.paidAmount || 0), 0), 0), [student]);
 
-  const pdf = async (kind: "enrollment-form" | "card" | "dossier", mode: "download" | "open" | "print") => {
+  const pdf = async (kind: "enrollment-form" | "card" | "dossier", mode: "download" | "open" | "print", side: "front" | "back" | "both" = "both") => {
     const names = {
       "enrollment-form": `fiche-inscription-${student?.matricule || id}.pdf`,
-      card: `carte-eleve-${student?.matricule || id}.pdf`,
+      card: `carte-eleve-${student?.matricule || id}-${side === "both" ? "recto-verso" : side === "front" ? "recto" : "verso"}.pdf`,
       dossier: `dossier-eleve-${student?.matricule || id}.pdf`,
     };
-    const error = await downloadProtectedFile(`/api/students/${id}/${kind}`, names[kind], mode);
+    const endpoint = kind === "card" ? `/api/students/${id}/${kind}?side=${side}` : `/api/students/${id}/${kind}`;
+    const error = await downloadProtectedFile(endpoint, names[kind], mode);
     if (error) setMessage(error);
   };
 
@@ -330,11 +331,11 @@ export default function StudentDetailPage() {
             <button onClick={() => pdf("enrollment-form", "download")} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-soraDark text-sm font-semibold hover:bg-emerald-50">
               <Download className="w-4 h-4" /> Fiche PDF
             </button>
-            <button onClick={() => pdf("card", "download")} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500">
-              <CreditCard className="w-4 h-4" /> Carte PDF
+            <button onClick={() => pdf("card", "open", "both")} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500">
+              <CreditCard className="w-4 h-4" /> Aperçu carte
             </button>
-            <button onClick={() => pdf("dossier", "print")} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white/[0.08] text-white text-sm font-semibold hover:bg-white/[0.12] border border-white/10">
-              <Printer className="w-4 h-4" /> Imprimer
+            <button onClick={() => pdf("card", "print", "both")} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white/[0.08] text-white text-sm font-semibold hover:bg-white/[0.12] border border-white/10">
+              <Printer className="w-4 h-4" /> Imprimer carte
             </button>
           </div>
         </div>
@@ -412,8 +413,20 @@ export default function StudentDetailPage() {
               <button onClick={() => pdf("enrollment-form", "open")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
                 Ouvrir fiche d'inscription <FileText className="w-4 h-4" />
               </button>
-              <button onClick={() => pdf("card", "open")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
-                Ouvrir carte scolaire <CreditCard className="w-4 h-4" />
+              <button onClick={() => pdf("card", "open", "both")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
+                Aperçu carte recto-verso <CreditCard className="w-4 h-4" />
+              </button>
+              <button onClick={() => pdf("card", "open", "front")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
+                Aperçu recto <CreditCard className="w-4 h-4" />
+              </button>
+              <button onClick={() => pdf("card", "open", "back")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
+                Aperçu verso <CreditCard className="w-4 h-4" />
+              </button>
+              <button onClick={() => pdf("card", "download", "both")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
+                Télécharger carte recto-verso <Download className="w-4 h-4" />
+              </button>
+              <button onClick={() => pdf("card", "print", "both")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
+                Imprimer carte recto-verso <Printer className="w-4 h-4" />
               </button>
               <button onClick={() => pdf("dossier", "download")} className="w-full inline-flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-sm text-white">
                 Télécharger dossier complet <Download className="w-4 h-4" />

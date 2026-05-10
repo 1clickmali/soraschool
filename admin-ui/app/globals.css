@@ -6,6 +6,14 @@
   --foreground-rgb: 249, 250, 251;
   --background-start-rgb: 10, 15, 30;
   --background-end-rgb: 10, 15, 30;
+  color-scheme: dark;
+}
+
+.light {
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 244, 247, 251;
+  --background-end-rgb: 255, 255, 255;
+  color-scheme: light;
 }
 
 * {
@@ -30,6 +38,322 @@ body {
   font-variant-numeric: tabular-nums;
   min-height: 100dvh;
   overflow-wrap: break-word;
+}
+
+.light body {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(37, 99, 235, 0.08), transparent 28%),
+    radial-gradient(circle at 82% 4%, rgba(16, 185, 129, 0.08), transparent 26%),
+    #f5f7fb;
+  color: #0f172a;
+}
+
+.light .bg-soraDark,
+.light [class*="bg-[#080d1a]"],
+.light [class*="bg-[#080d19]"],
+.light [class*="bg-[#0A0F1E]"] {
+  background-color: #f5f7fb !important;
+}
+
+.light .bg-soraSidebar {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+}
+
+.light .bg-soraCard,
+.light .glass-card,
+.light .glass-premium,
+.light .card-premium,
+.light [class*="bg-white/["] {
+  background-color: rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(15, 23, 42, 0.10) !important;
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+}
+
+.light .border-white\/10,
+.light .border-white\/\[0\.06\],
+.light .border-white\/\[0\.07\],
+.light .border-white\/\[0\.08\],
+.light .border-white\/\[0\.1\],
+.light .border-white\/\[0\.12\] {
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+.light .divide-white\/5 > :not([hidden]) ~ :not([hidden]),
+.light .divide-white\/8 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+.light .text-white,
+.light .text-gray-100,
+.light .text-gray-200,
+.light .text-gray-300 {
+  color: #0f172a !important;
+}
+
+.light .text-gray-400,
+.light .text-gray-500,
+.light .text-gray-600 {
+  color: #64748b !important;
+}
+
+.light input,
+.light select,
+.light textarea {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+  color: #0f172a !important;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.light .bg-soraBlue.text-white,
+.light [class*="bg-blue-"].text-white,
+.light [class*="bg-emerald-"].text-white,
+.light [class*="bg-red-"].text-white,
+.light [class*="bg-violet-"].text-white,
+.light [class*="bg-purple-"].text-white,
+.light [class*="bg-amber-"].text-white,
+.light [class*="bg-gradient-to"] .text-white,
+.light .shadow-glow-blue.text-white {
+  color: #ffffff !important;
+}
+
+/* ── AcademyOS: premium school-first redesign ───────────── */
+.sora-academy-shell {
+  color: var(--academy-text);
+  background: var(--academy-bg);
+}
+
+.light .sora-academy-shell {
+  --academy-bg:
+    radial-gradient(circle at 8% 8%, rgba(16, 185, 129, 0.16), transparent 24%),
+    radial-gradient(circle at 88% 4%, rgba(14, 165, 233, 0.12), transparent 28%),
+    linear-gradient(135deg, #f8f4ea 0%, #f3f7fb 45%, #eef7f2 100%);
+  --academy-text: #132033;
+  --academy-muted: #64748b;
+  --academy-faint: #94a3b8;
+  --academy-surface: rgba(255, 255, 255, 0.78);
+  --academy-surface-strong: rgba(255, 255, 255, 0.94);
+  --academy-sidebar: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,250,252,0.92));
+  --academy-border: rgba(15, 23, 42, 0.11);
+  --academy-soft-border: rgba(15, 23, 42, 0.08);
+  --academy-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+}
+
+.dark .sora-academy-shell {
+  --academy-bg:
+    radial-gradient(circle at 8% 8%, rgba(20, 184, 166, 0.12), transparent 26%),
+    radial-gradient(circle at 88% 4%, rgba(59, 130, 246, 0.10), transparent 28%),
+    linear-gradient(135deg, #07111f 0%, #0a1220 48%, #07151a 100%);
+  --academy-text: #e5edf8;
+  --academy-muted: #94a3b8;
+  --academy-faint: #64748b;
+  --academy-surface: rgba(15, 23, 42, 0.78);
+  --academy-surface-strong: rgba(15, 23, 42, 0.94);
+  --academy-sidebar: linear-gradient(180deg, rgba(7, 17, 31, 0.98), rgba(12, 21, 36, 0.95));
+  --academy-border: rgba(226, 232, 240, 0.10);
+  --academy-soft-border: rgba(226, 232, 240, 0.07);
+  --academy-shadow: 0 18px 55px rgba(0, 0, 0, 0.28);
+}
+
+.sora-academy-shell::selection {
+  background: rgba(13, 148, 136, 0.26);
+  color: var(--academy-text);
+}
+
+.sora-academy-sidebar,
+.sora-academy-shell .bg-soraSidebar,
+.sora-academy-shell [class*="bg-[#080d19]"] {
+  background: var(--academy-sidebar) !important;
+  border-color: var(--academy-border) !important;
+  box-shadow: 18px 0 60px rgba(0, 0, 0, 0.10);
+}
+
+.sora-academy-header,
+.sora-academy-shell header,
+.sora-academy-shell .mobile-header {
+  background: color-mix(in srgb, var(--academy-surface-strong) 88%, transparent) !important;
+  border-color: var(--academy-border) !important;
+  box-shadow: var(--academy-shadow);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+}
+
+.sora-academy-shell .bg-soraDark,
+.sora-academy-shell [class*="bg-[#080d1a]"],
+.sora-academy-shell [class*="bg-[#0A0F1E]"] {
+  background: transparent !important;
+}
+
+.sora-academy-shell .bg-soraCard,
+.sora-academy-shell .glass-card,
+.sora-academy-shell .glass-premium,
+.sora-academy-shell .card-premium,
+.sora-academy-shell [class*="bg-white/"] {
+  background: var(--academy-surface) !important;
+  border-color: var(--academy-border) !important;
+  box-shadow: var(--academy-shadow);
+}
+
+.dark .sora-academy-shell .bg-white,
+.dark .sora-academy-shell .bg-slate-50,
+.dark .sora-academy-shell .bg-gray-50,
+.dark .sora-academy-shell .bg-emerald-50,
+.dark .sora-academy-shell .bg-teal-50,
+.dark .sora-academy-shell .bg-sky-50,
+.dark .sora-academy-shell .bg-blue-50,
+.dark .sora-academy-shell .bg-amber-50,
+.dark .sora-academy-shell .bg-orange-50,
+.dark .sora-academy-shell .bg-red-50,
+.dark .sora-academy-shell .bg-indigo-50,
+.dark .sora-academy-shell .bg-purple-50 {
+  background-color: var(--academy-surface) !important;
+  border-color: var(--academy-border) !important;
+}
+
+.sora-academy-shell .border-white\/10,
+.sora-academy-shell .border-white\/\[0\.04\],
+.sora-academy-shell .border-white\/\[0\.05\],
+.sora-academy-shell .border-white\/\[0\.06\],
+.sora-academy-shell .border-white\/\[0\.07\],
+.sora-academy-shell .border-white\/\[0\.08\],
+.sora-academy-shell .border-white\/\[0\.1\],
+.sora-academy-shell .border-white\/\[0\.12\] {
+  border-color: var(--academy-border) !important;
+}
+
+.sora-academy-shell .divide-white\/\[0\.04\] > :not([hidden]) ~ :not([hidden]),
+.sora-academy-shell .divide-white\/5 > :not([hidden]) ~ :not([hidden]),
+.sora-academy-shell .divide-white\/8 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--academy-soft-border) !important;
+}
+
+.light .sora-academy-shell .text-white,
+.light .sora-academy-shell .text-gray-100,
+.light .sora-academy-shell .text-gray-200,
+.light .sora-academy-shell .text-gray-300 {
+  color: #111827 !important;
+}
+
+.light .sora-academy-shell .text-gray-400,
+.light .sora-academy-shell .text-gray-500,
+.light .sora-academy-shell .text-gray-600 {
+  color: #64748b !important;
+}
+
+.dark .sora-academy-shell .text-slate-950,
+.dark .sora-academy-shell .text-slate-900,
+.dark .sora-academy-shell .text-slate-800,
+.dark .sora-academy-shell .text-slate-700,
+.dark .sora-academy-shell .text-gray-950,
+.dark .sora-academy-shell .text-gray-900,
+.dark .sora-academy-shell .text-gray-800,
+.dark .sora-academy-shell .text-gray-700 {
+  color: #e5edf8 !important;
+}
+
+.dark .sora-academy-shell .text-slate-600,
+.dark .sora-academy-shell .text-slate-500,
+.dark .sora-academy-shell .text-gray-500,
+.dark .sora-academy-shell .text-gray-600 {
+  color: #94a3b8 !important;
+}
+
+.dark .sora-academy-shell .text-slate-400,
+.dark .sora-academy-shell .text-gray-400 {
+  color: #cbd5e1 !important;
+}
+
+.dark .sora-academy-shell .text-soraDark {
+  color: #e5edf8 !important;
+}
+
+.dark .sora-academy-shell .text-emerald-800,
+.dark .sora-academy-shell .text-emerald-700,
+.dark .sora-academy-shell .text-emerald-600 {
+  color: #6ee7b7 !important;
+}
+
+.dark .sora-academy-shell .text-teal-800,
+.dark .sora-academy-shell .text-teal-700,
+.dark .sora-academy-shell .text-teal-600 {
+  color: #5eead4 !important;
+}
+
+.dark .sora-academy-shell .text-sky-800,
+.dark .sora-academy-shell .text-sky-700,
+.dark .sora-academy-shell .text-sky-600,
+.dark .sora-academy-shell .text-blue-800,
+.dark .sora-academy-shell .text-blue-700,
+.dark .sora-academy-shell .text-blue-600 {
+  color: #7dd3fc !important;
+}
+
+.dark .sora-academy-shell .text-amber-800,
+.dark .sora-academy-shell .text-amber-700,
+.dark .sora-academy-shell .text-amber-600,
+.dark .sora-academy-shell .text-orange-800,
+.dark .sora-academy-shell .text-orange-700,
+.dark .sora-academy-shell .text-orange-600 {
+  color: #fcd34d !important;
+}
+
+.dark .sora-academy-shell .text-red-800,
+.dark .sora-academy-shell .text-red-700,
+.dark .sora-academy-shell .text-red-600 {
+  color: #fca5a5 !important;
+}
+
+.sora-academy-shell input,
+.sora-academy-shell select,
+.sora-academy-shell textarea {
+  background-color: var(--academy-surface-strong) !important;
+  border-color: var(--academy-border) !important;
+  color: var(--academy-text) !important;
+}
+
+.sora-academy-shell input::placeholder,
+.sora-academy-shell textarea::placeholder {
+  color: var(--academy-faint) !important;
+}
+
+.sora-academy-shell option {
+  background-color: var(--academy-surface-strong) !important;
+  color: var(--academy-text) !important;
+}
+
+.sora-academy-shell .bg-emerald-600.text-white,
+.sora-academy-shell .bg-emerald-500.text-white,
+.sora-academy-shell .bg-blue-600.text-white,
+.sora-academy-shell .bg-blue-500.text-white,
+.sora-academy-shell .bg-red-600.text-white,
+.sora-academy-shell .bg-red-500.text-white,
+.sora-academy-shell .bg-soraBlue.text-white,
+.sora-academy-shell .bg-slate-950.text-white,
+.sora-academy-shell .bg-slate-900.text-white,
+.sora-academy-shell [class*="bg-gradient-to"].text-white,
+.sora-academy-shell [class*="bg-gradient-to"] .text-white {
+  color: #ffffff !important;
+}
+
+.sora-premium-card {
+  border: 1px solid var(--academy-border, rgba(15, 23, 42, 0.10));
+  background: var(--academy-surface, rgba(255, 255, 255, 0.82));
+  box-shadow: var(--academy-shadow, 0 18px 55px rgba(15, 23, 42, 0.08));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.sora-premium-card:hover {
+  border-color: rgba(13, 148, 136, 0.28);
 }
 
 /* ── Custom scrollbar ─────────────────────────────────── */

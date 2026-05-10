@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Plus,
   Check,
   Crown,
   Zap,
@@ -14,11 +13,14 @@ import {
   Users,
   Star,
   RefreshCw,
+  Layers,
+  BadgeCheck,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TierBadge } from "@/components/ui/badge";
-import { Modal } from "@/components/ui/modal";
 import { PlanCardSkeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { superAdminApi, type Plan } from "@/lib/api";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -40,50 +42,37 @@ const TIER_CONFIG = {
     iconColor: "text-purple-400",
     badge: "purple",
     popular: true,
-  },
-  ENTERPRISE: {
-    icon: Crown,
-    gradient: "from-yellow-600/20 to-yellow-900/20",
-    border: "border-yellow-500/30",
-    iconBg: "bg-yellow-500/20",
-    iconColor: "text-yellow-400",
-    badge: "gold",
-    popular: false,
-  },
+  }
 };
 
-const PLAN_COPY: Record<Plan["tier"], { label: string; description: string }> = {
+const PLAN_COPY: Record<"BASIC" | "PREMIUM", { label: string; description: string }> = {
   BASIC: {
     label: "Basic",
-    description: "Pour une école unique qui démarre sa gestion numérique.",
+    description: "Idéal pour une école unique souhaitant digitaliser sa gestion complète.",
   },
   PREMIUM: {
     label: "Premium",
-    description: "Pour une école complète avec parents, PDF, boutique et exports.",
-  },
-  ENTERPRISE: {
-    label: "Entreprise",
-    description: "Pour les groupes scolaires avec plusieurs établissements.",
-  },
+    description: "Idéal pour les groupes scolaires, réseaux d'écoles et établissements multi-sites.",
+  }
 };
 
 const FEATURE_LABELS: Record<string, string> = {
-  students: "Gestion des élèves",
-  classes: "Classes et niveaux",
+  students: "Gestion des apprenants",
+  classes: "Structure académique",
   teachers: "Gestion des enseignants",
-  attendance: "Présences élèves et professeurs",
-  grades: "Notes, bulletins et décisions",
+  attendance: "Assiduité apprenants et enseignants",
+  grades: "Évaluations, bulletins et décisions",
   payments: "Frais scolaires, paiements et reçus",
   documents: "Documents officiels et PDF",
   all_basic: "Tout le plan Basic",
   parent_portal: "Espace parents en lecture seule",
   pdf_cards: "Cartes, fiches et bulletins PDF",
-  shop: "Boutique scolaire et stock",
+  shop: "Stock & fournitures",
   messages: "Messagerie école-famille",
   advanced_exports: "Exports Excel/PDF avancés",
   all_premium: "Tout le plan Premium",
   multi_establishment: "Administration Centrale multi-écoles",
-  unlimited_students: "Élèves illimités",
+  unlimited_students: "Apprenants illimités",
   unlimited_teachers: "Enseignants illimités",
   api_mobile: "Application mobile et API",
   priority_support: "Support prioritaire",
@@ -99,9 +88,10 @@ function limitLabel(value: number | undefined, unlimitedAt: number) {
 }
 
 function PlanCard({ plan, delay }: { plan: Plan; delay: number }) {
-  const config = TIER_CONFIG[plan.tier];
+  const effectiveTier: "BASIC" | "PREMIUM" = plan.tier === "PREMIUM" || plan.canCreateBranches ? "PREMIUM" : "BASIC";
+  const config = TIER_CONFIG[effectiveTier];
   const Icon = config.icon;
-  const copy = PLAN_COPY[plan.tier];
+  const copy = PLAN_COPY[effectiveTier];
 
   return (
     <motion.div
@@ -128,9 +118,7 @@ function PlanCard({ plan, delay }: { plan: Plan; delay: number }) {
       {/* Subtle top glow */}
       <div className={cn(
         "absolute inset-x-0 top-0 h-px opacity-50",
-        plan.tier === "BASIC" ? "bg-blue-500" :
-        plan.tier === "PREMIUM" ? "bg-purple-500" :
-        "bg-yellow-500"
+        effectiveTier === "BASIC" ? "bg-blue-500" : "bg-purple-500"
       )} />
 
       <div className={cn("p-6", config.popular && "pt-10")}>
@@ -142,47 +130,38 @@ function PlanCard({ plan, delay }: { plan: Plan; delay: number }) {
             </div>
             <div className="min-w-0">
               <h3 className="text-lg font-bold font-heading text-white">{copy.label}</h3>
-              <TierBadge tier={plan.tier} />
+              <TierBadge tier={effectiveTier} />
             </div>
           </div>
         </div>
         <p className="mb-5 min-h-[40px] text-sm leading-snug text-gray-400">{copy.description}</p>
 
         {/* Price */}
-        <div className="mb-6">
-          {plan.monthlyPrice === 0 ? (
-            <div>
-              <span className="text-3xl font-bold font-heading text-white">Gratuit</span>
-              <p className="text-gray-500 text-sm mt-1">Pour toujours</p>
-            </div>
-          ) : (
-            <div>
-              <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
-                <span className="text-[2rem] font-bold font-heading leading-tight text-white">
-                  {formatCurrency(plan.monthlyPrice)}
-                </span>
-                <span className="text-gray-400 text-sm">/mois</span>
-              </div>
-              <p className="text-gray-500 text-sm mt-1 leading-snug">
-                {formatCurrency(plan.annualPrice)}/an
-                <span className="ml-2 text-emerald-400 text-xs font-medium">
-                  (économisez {Math.round((1 - plan.annualPrice / (plan.monthlyPrice * 12)) * 100)}%)
-                </span>
-              </p>
-            </div>
-          )}
+        <div className="mb-6 space-y-2">
+          <div className="flex items-center gap-2">
+            <Banknote className="w-4 h-4 text-gray-500 shrink-0" />
+            <span className="text-xs text-gray-500">Frais d'installation</span>
+            <span className="ml-auto text-base font-bold text-white">{formatCurrency(plan.installationFee ?? 0)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-gray-500 shrink-0" />
+            <span className="text-xs text-gray-500">Abonnement annuel</span>
+            <span className="ml-auto text-base font-bold text-white">{formatCurrency(plan.annualPrice)}</span>
+          </div>
+          <div className="flex items-center gap-2 pt-1 border-t border-white/[0.06]">
+            <span className="text-xs text-emerald-400 font-medium">Total 1ère année</span>
+            <span className="ml-auto text-lg font-bold text-emerald-300">
+              {formatCurrency((plan.installationFee ?? 0) + plan.annualPrice)}
+            </span>
+          </div>
         </div>
 
         {/* Limits */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6 bg-black/20 rounded-xl p-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 bg-black/20 rounded-xl p-3">
           {[
-            { label: "Élèves", value: limitLabel(plan.maxStudents, 10000), icon: GraduationCap },
-            { label: "Enseignants", value: limitLabel(plan.maxTeachers, 500), icon: BookOpen },
-            {
-              label: "Établissements",
-              value: plan.canCreateBranches || plan.tier === "ENTERPRISE" ? "∞" : String(plan.maxEstablishments || 1),
-              icon: Building2,
-            },
+            { label: "Apprenants", value: limitLabel(plan.maxStudents ?? undefined, 10000), icon: GraduationCap },
+            { label: "Enseignants", value: limitLabel(plan.maxTeachers ?? undefined, 500), icon: BookOpen },
+            { label: "Établissements", value: String(plan.maxEstablishments || 1), icon: Building2 },
           ].map((limit, index) => (
             <div key={limit.label} className={cn("min-w-0 rounded-lg px-2 py-2 text-center", index === 1 && "sm:border-x sm:border-white/5")}>
               <div className="flex items-center justify-center text-gray-400 mb-1">
@@ -192,6 +171,18 @@ function PlanCard({ plan, delay }: { plan: Plan; delay: number }) {
               <p className="mt-1 text-[11px] leading-tight text-gray-500 break-words">{limit.label}</p>
             </div>
           ))}
+        </div>
+        {/* Multi-school badge */}
+        <div className={cn(
+          "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border mb-4",
+          plan.canCreateBranches
+            ? "bg-purple-500/10 border-purple-500/20 text-purple-300"
+            : "bg-blue-500/10 border-blue-500/20 text-blue-300"
+        )}>
+          {plan.canCreateBranches
+            ? <><Layers className="w-3 h-3 shrink-0" /> Multi-établissements activé</>
+            : <><BadgeCheck className="w-3 h-3 shrink-0" /> Établissement unique</>
+          }
         </div>
 
         {/* Divider */}
@@ -219,145 +210,6 @@ function PlanCard({ plan, delay }: { plan: Plan; delay: number }) {
   );
 }
 
-function CreatePlanModal({ isOpen, onClose, onCreated }: {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreated: (plan: Plan) => void;
-}) {
-  const [formData, setFormData] = useState({
-    name: "",
-    tier: "BASIC" as Plan["tier"],
-    monthlyPrice: 0,
-    annualPrice: 0,
-    maxStudents: 500,
-    maxTeachers: 40,
-    featuresInput: "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const features = formData.featuresInput
-      .split("\n")
-      .map((f) => f.trim())
-      .filter(Boolean);
-
-    const { data, error: err } = await superAdminApi.createPlan({
-      name: formData.name,
-      tier: formData.tier,
-      monthlyPrice: formData.monthlyPrice,
-      annualPrice: formData.annualPrice,
-      maxStudents: formData.maxStudents,
-      maxTeachers: formData.maxTeachers,
-      features,
-    });
-
-    setLoading(false);
-    if (err || !data) { setError(err || "Erreur"); return; }
-    onCreated(data.plan);
-    onClose();
-  };
-
-  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:border-soraBlue/50 transition-colors text-sm";
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Créer un plan" size="lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Nom du plan</label>
-            <input
-              required
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ex: Business Pro"
-              className={inputClass}
-            />
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Niveau (tier)</label>
-            <select
-              value={formData.tier}
-              onChange={(e) => setFormData({ ...formData, tier: e.target.value as Plan["tier"] })}
-              className={inputClass}
-            >
-              {["BASIC", "PREMIUM", "ENTERPRISE"].map((t) => (
-                <option key={t} value={t} className="bg-soraCard">{t}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Prix mensuel (XOF)</label>
-            <input
-              type="number"
-              min={0}
-              value={formData.monthlyPrice}
-              onChange={(e) => setFormData({ ...formData, monthlyPrice: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Prix annuel (XOF)</label>
-            <input
-              type="number"
-              min={0}
-              value={formData.annualPrice}
-              onChange={(e) => setFormData({ ...formData, annualPrice: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Max élèves</label>
-            <input
-              type="number"
-              min={1}
-              value={formData.maxStudents}
-              onChange={(e) => setFormData({ ...formData, maxStudents: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Max enseignants</label>
-            <input
-              type="number"
-              min={1}
-              value={formData.maxTeachers}
-              onChange={(e) => setFormData({ ...formData, maxTeachers: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </div>
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Fonctionnalités <span className="text-gray-500 font-normal">(une par ligne)</span>
-            </label>
-            <textarea
-              rows={5}
-              value={formData.featuresInput}
-              onChange={(e) => setFormData({ ...formData, featuresInput: e.target.value })}
-              placeholder={"Gestion des classes\nSuivi de présence\nBulletins scolaires"}
-              className={cn(inputClass, "resize-none")}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5">{error}</div>
-        )}
-
-        <div className="flex gap-3 pt-2">
-          <Button variant="secondary" type="button" onClick={onClose} className="flex-1">Annuler</Button>
-          <Button type="submit" loading={loading} className="flex-1">Créer le plan</Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -366,7 +218,12 @@ export default function PlansPage() {
   const fetchData = async () => {
     setLoading(true);
     const { data } = await superAdminApi.plans();
-    setPlans(data?.plans || []);
+    let officialPlans = data?.plans || [];
+    if (officialPlans.length === 0) {
+      const synced = await superAdminApi.syncDefaultPlans();
+      officialPlans = synced.data?.plans || [];
+    }
+    setPlans(officialPlans);
     setLoading(false);
   };
 
@@ -392,7 +249,7 @@ export default function PlansPage() {
         <div>
           <h1 className="text-2xl font-bold font-heading text-white">Plans & abonnements</h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            Offres officielles : Basic 55 000 XOF, Premium 125 000 XOF, Entreprise 200 000 XOF.
+            Deux plans actifs : Basic (200 000 XOF install. + 100 000 XOF/an) · Premium (300 000 XOF install. + 500 000 XOF/an).
           </p>
         </div>
         <Button variant="secondary" loading={syncing} icon={<RefreshCw className="w-4 h-4" />} onClick={syncOfficialPlans}>
@@ -408,10 +265,10 @@ export default function PlansPage() {
         className="grid grid-cols-2 md:grid-cols-4 gap-4"
       >
         {[
-          { label: "Plans actifs", value: String(plans.length), icon: Users, color: "text-soraBlue", bg: "bg-soraBlue/10" },
-          { label: "Prix mensuel min.", value: plans.length ? formatCurrency(Math.min(...plans.map((p) => p.monthlyPrice))) : "—", icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-          { label: "Plan premium", value: plans.find((p) => p.tier === "PREMIUM")?.name || "—", icon: Star, color: "text-purple-400", bg: "bg-purple-500/10" },
-          { label: "Prix annuel max.", value: plans.length ? formatCurrency(Math.max(...plans.map((p) => p.annualPrice))) : "—", icon: TrendingUp, color: "text-soraGold", bg: "bg-soraGold/10" },
+          { label: "Plans actifs", value: String(plans.filter(p => p.isActive !== false).length), icon: Users, color: "text-soraBlue", bg: "bg-soraBlue/10" },
+          { label: "Basic — 1ère année", value: plans.find(p => p.code === "BASIC") ? formatCurrency((plans.find(p => p.code === "BASIC")!.installationFee ?? 0) + plans.find(p => p.code === "BASIC")!.annualPrice) : "—", icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { label: "Premium — 1ère année", value: plans.find(p => p.code === "PREMIUM") ? formatCurrency((plans.find(p => p.code === "PREMIUM")!.installationFee ?? 0) + plans.find(p => p.code === "PREMIUM")!.annualPrice) : "—", icon: Star, color: "text-purple-400", bg: "bg-purple-500/10" },
+          { label: "Renouvellement max.", value: plans.length ? formatCurrency(Math.max(...plans.map((p) => p.annualPrice))) : "—", icon: TrendingUp, color: "text-soraGold", bg: "bg-soraGold/10" },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -436,11 +293,17 @@ export default function PlansPage() {
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <PlanCardSkeleton key={i} />)
         ) : plans.length === 0 ? (
-          <div className="md:col-span-2 xl:col-span-3 bg-soraCard border border-white/8 rounded-2xl p-10 text-center">
-            <Crown className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-            <p className="text-gray-400 font-medium">Aucun plan configuré</p>
-            <p className="text-gray-600 text-sm mt-1">Cliquez sur Synchroniser les plans pour créer les offres officielles.</p>
-          </div>
+          <EmptyState
+            className="md:col-span-2 xl:col-span-3"
+            icon={<Crown className="h-10 w-10" />}
+            title="Aucun plan configuré"
+            description="Synchronisez les offres officielles Basic et Premium pour continuer."
+            action={
+              <Button variant="secondary" loading={syncing} icon={<RefreshCw className="w-4 h-4" />} onClick={syncOfficialPlans}>
+                Synchroniser les plans
+              </Button>
+            }
+          />
         ) : (
           plans.map((plan, index) => (
             <PlanCard key={plan.id} plan={plan} delay={index * 0.08} />
@@ -449,10 +312,13 @@ export default function PlansPage() {
       </div>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-soraBlue/20 bg-soraBlue/5 p-5">
-        <p className="text-sm font-semibold text-soraBlue">Règles automatiques appliquées</p>
-        <p className="mt-1 text-xs text-gray-400">
-          Basic et Premium restent sur un seul établissement. Le plan Entreprise active la création de filiales et autorise plusieurs établissements pour une même école.
-        </p>
+        <p className="text-sm font-semibold text-soraBlue">Règles de facturation</p>
+        <ul className="mt-2 text-xs text-gray-400 space-y-1 list-disc list-inside">
+          <li>Plan Basic — 1 établissement unique, frais d'installation 200 000 XOF + 100 000 XOF/an</li>
+          <li>Plan Premium — multi-établissements (jusqu'à 10), frais d'installation 300 000 XOF + 500 000 XOF/an</li>
+          <li>Les frais d'installation sont facturés une seule fois à la création, puis uniquement l'abonnement annuel est renouvelé</li>
+          <li>Les anciens plans sont désactivés et les écoles actives sont migrées vers Basic ou Premium</li>
+        </ul>
       </motion.div>
     </div>
   );

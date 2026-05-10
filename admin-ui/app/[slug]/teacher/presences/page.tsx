@@ -7,7 +7,6 @@ import {
   Users,
   AlertCircle,
   Clock,
-  FileCheck,
   Download,
   BookOpen,
   ChevronLeft,
@@ -180,7 +179,7 @@ export default function PresencesPage() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-6"
       >
-        <h1 className="text-2xl font-bold font-heading text-white">Présences</h1>
+        <h1 className="text-2xl font-bold font-heading text-white">Assiduité</h1>
         <p className="text-gray-400 text-sm mt-1">
           Faites l&apos;appel pour vos cours programmés aujourd&apos;hui
         </p>

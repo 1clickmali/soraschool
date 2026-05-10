@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Star, Users, TrendingUp, ChevronRight, Loader2 } from "lucide-react";
 import { schoolApi, schoolApiRequest, type Student } from "@/lib/school-api";
@@ -46,9 +46,7 @@ function gradeColor(val: number | null) {
 }
 
 export default function NotesPage() {
-  const params = useParams();
   const searchParams = useSearchParams();
-  const slug = params.slug as string;
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -174,7 +172,7 @@ export default function NotesPage() {
         transition={{ duration: 0.4 }}
         className="mb-6"
       >
-        <h1 className="text-2xl font-bold font-heading text-white">Notes & saisie</h1>
+        <h1 className="text-2xl font-bold font-heading text-white">Évaluations</h1>
         <p className="text-gray-400 text-sm mt-1">Saisissez les notes de vos élèves</p>
       </motion.div>
 

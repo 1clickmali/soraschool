@@ -1,4 +1,4 @@
-const CACHE_NAME = "soraschool-static-v1";
+const CACHE_NAME = "soraschool-static-v2";
 const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/soraschool-icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -27,7 +27,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
-  if (url.pathname.startsWith("/_next/static/") || STATIC_ASSETS.includes(url.pathname)) {
+  if (STATIC_ASSETS.includes(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;

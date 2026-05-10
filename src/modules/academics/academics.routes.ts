@@ -5,6 +5,7 @@ import { prisma } from '../../config/prisma'
 import { asyncHandler } from '../../lib/async'
 import { getScopedEstablishmentId, resolveWritableEstablishmentId } from '../../lib/access-scope'
 import { badRequest, notFound } from '../../lib/errors'
+import { assertSubjectCompatibleWithClassroom } from '../../lib/curriculum-compatibility'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
@@ -106,6 +107,30 @@ const KIND_ALLOWED_CODES: Record<string, string[] | null> = {
   RELIGIOUS:       null,
   BILINGUAL:       null,
   OTHER:           null,
+}
+
+async function assertGradeLevelCompatibleWithInstitution(institutionId: string, gradeLevelId?: string | null) {
+  if (!gradeLevelId) return null
+
+  const [institution, gradeLevel] = await Promise.all([
+    prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { kind: true }
+    }),
+    prisma.gradeLevel.findFirst({
+      where: { id: gradeLevelId, institutionId },
+      select: { id: true, code: true, name: true }
+    })
+  ])
+
+  if (!gradeLevel) throw notFound('Niveau introuvable')
+
+  const allowedCodes = institution?.kind ? KIND_ALLOWED_CODES[institution.kind] : null
+  if (allowedCodes && !allowedCodes.includes(gradeLevel.code)) {
+    throw badRequest(`Le niveau ${gradeLevel.name} n'est pas compatible avec le type d'établissement configuré.`)
+  }
+
+  return gradeLevel
 }
 
 academicsRoutes.get(
@@ -216,12 +241,16 @@ academicsRoutes.post(
     if (!academicYearId) {
       throw badRequest('Aucune année scolaire active configurée')
     }
+    const gradeLevel = await assertGradeLevelCompatibleWithInstitution(
+      req.institutionId!,
+      req.body.gradeLevelId ?? req.body.levelId
+    )
     const classroom = await prisma.classroom.create({
       data: {
         institutionId: req.institutionId!,
         academicYearId,
         establishmentId: resolveWritableEstablishmentId(req, req.body.establishmentId),
-        gradeLevelId: req.body.gradeLevelId ?? req.body.levelId,
+        gradeLevelId: gradeLevel?.id,
         mainTeacherId: req.body.mainTeacherId,
         name: req.body.name,
         capacity: req.body.capacity
@@ -248,9 +277,13 @@ academicsRoutes.patch(
       where: { id: req.params.id, institutionId: req.institutionId! }
     })
     if (!classroom) throw notFound('Classe introuvable')
+    const gradeLevel = await assertGradeLevelCompatibleWithInstitution(req.institutionId!, req.body.gradeLevelId)
     const updated = await prisma.classroom.update({
       where: { id: classroom.id },
-      data: req.body,
+      data: {
+        ...req.body,
+        gradeLevelId: gradeLevel?.id ?? req.body.gradeLevelId
+      },
       include: { gradeLevel: true, academicYear: true, mainTeacher: true, _count: { select: { students: true, assignments: true } } }
     })
     res.json({ classroom: updated })
@@ -398,6 +431,11 @@ academicsRoutes.post(
     if (!teacher) throw notFound('Enseignant introuvable')
     if (!classroom) throw notFound('Classe introuvable')
     if (!subject) throw notFound('Matière introuvable ou archivée')
+    await assertSubjectCompatibleWithClassroom({
+      institutionId: req.institutionId!,
+      classroomId: classroom.id,
+      subjectId: subject.id
+    })
 
     const activeYear = req.body.academicYearId
       ? await prisma.academicYear.findFirst({ where: { id: req.body.academicYearId, institutionId: req.institutionId! } })

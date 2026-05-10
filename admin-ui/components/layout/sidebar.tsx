@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FC } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,8 +10,6 @@ import {
   Building2,
   CreditCard,
   CalendarDays,
-  CalendarOff,
-  DollarSign,
   Settings,
   ShieldCheck,
   FileText,
@@ -35,21 +33,18 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Vue d'ensemble",       href: "/dashboard",      icon: LayoutDashboard },
-  { label: "Analytique",           href: "/analytics",      icon: BarChart3 },
+  { label: "Rapports & statistiques", href: "/analytics",   icon: BarChart3 },
   { separator: true, label: "",    sectionLabel: "ÉTABLISSEMENTS" },
   { label: "Écoles clientes",      href: "/institutions",   icon: Building2 },
   { label: "Plans & abonnements",  href: "/plans",          icon: CreditCard },
-  { label: "Facturation SaaS",     href: "/payments",       icon: DollarSign },
-  { label: "Factures SaaS",        href: "/factures",       icon: Receipt },
+  { label: "Finance SaaS",         href: "/factures",       icon: Receipt },
   { separator: true, label: "",    sectionLabel: "ADMINISTRATION" },
-  { label: "Paramètres plateforme",href: "/parametres",     icon: Settings },
-  { label: "Configuration écoles", href: "/configuration",  icon: Building2 },
-  { label: "Utilisateurs & accès", href: "/acces-autorises",icon: ShieldCheck },
-  { label: "Documents",            href: "/documents",      icon: FileText },
-  { label: "Calendrier",           href: "/calendar",       icon: CalendarDays },
-  { label: "Vacances / Congés",    href: "/holidays",       icon: CalendarOff },
+  { label: "Utilisateurs & permissions", href: "/acces-autorises", icon: ShieldCheck },
+  { label: "Documents officiels",  href: "/documents",      icon: FileText },
+  { label: "Calendrier scolaire",  href: "/calendar",       icon: CalendarDays },
+  { label: "Configuration",        href: "/configuration",  icon: Settings },
   { separator: true, label: "",    sectionLabel: "SYSTÈME" },
-  { label: "Audit & Sécurité",     href: "/systeme",        icon: Server },
+  { label: "Audit & sécurité",     href: "/systeme",        icon: Server },
 ];
 
 interface SidebarProps {
@@ -227,7 +222,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
       <motion.aside
         animate={{ width: collapsed ? 72 : 260 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="relative hidden h-screen shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-soraSidebar lg:flex"
+        className="sora-academy-sidebar relative hidden h-screen shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-soraSidebar lg:flex"
       >
         <NavContent />
       </motion.aside>
@@ -247,7 +242,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
               key="sa-drawer"
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-soraSidebar shadow-2xl lg:hidden"
+              className="sora-academy-sidebar fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-soraSidebar shadow-2xl lg:hidden"
             >
               <NavContent mobile />
             </motion.aside>

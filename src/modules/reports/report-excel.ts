@@ -57,6 +57,25 @@ function autoWidth(sheet: ExcelJS.Worksheet, minWidth = 12) {
   })
 }
 
+function addChartBlock(sheet: ExcelJS.Worksheet, title: string, headers: string[], rows: Array<Array<string | number>>) {
+  if (rows.length === 0) return
+  sheet.addRow([])
+  const titleRow = sheet.addRow([title])
+  titleRow.getCell(1).font = { name: 'Calibri', bold: true, size: 12, color: { argb: `FF${PRIMARY}` } }
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, Math.max(3, headers.length + 1))
+  const header = sheet.addRow([...headers, 'Barre'])
+  styleHeader(header, ACCENT)
+  for (const rowData of rows) {
+    const row = sheet.addRow(rowData)
+    const value = Number(rowData[1] ?? 0)
+    row.getCell(headers.length + 1).value = '█'.repeat(Math.min(30, Math.max(1, Math.round(value / 10))))
+    row.getCell(headers.length + 1).font = { name: 'Calibri', color: { argb: `FF${PRIMARY}` } }
+  }
+  const startRow = header.number
+  const endRow = header.number + rows.length
+  sheet.autoFilter = { from: { row: startRow, column: 1 }, to: { row: endRow, column: headers.length } }
+}
+
 export async function streamReportExcel(res: Response, meta: ReportMeta, sections: Record<string, unknown>) {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'SoraSchool'
@@ -125,12 +144,22 @@ export async function streamReportExcel(res: Response, meta: ReportMeta, section
       row.getCell(2).numFmt = '#,##0'
       row.height = 18
     })
+    sheetFin.addRow(['Taux de recouvrement', f.collectionRate ?? 0]).getCell(2).numFmt = '0"%"'
+    sheetFin.addRow(['Contrôle solde', { formula: 'B3-B4', result: f.remaining ?? 0 }])
     if (f.byStatus && typeof f.byStatus === 'object') {
       sheetFin.addRow([])
       const sh = sheetFin.addRow(['Statut facture', 'Nombre'])
       styleHeader(sh, PRIMARY)
       for (const [status, count] of Object.entries(f.byStatus as Record<string, number>)) {
         sheetFin.addRow([status, count])
+      }
+    }
+    if (Array.isArray(f.monthlyTrend) && f.monthlyTrend.length) {
+      sheetFin.addRow([])
+      const hm = sheetFin.addRow(['Mois', 'Encaissements'])
+      styleHeader(hm, ACCENT)
+      for (const item of f.monthlyTrend as Array<Record<string, unknown>>) {
+        sheetFin.addRow([item.label, item.collected ?? 0]).getCell(2).numFmt = '#,##0'
       }
     }
     autoWidth(sheetFin)
@@ -193,6 +222,15 @@ export async function streamReportExcel(res: Response, meta: ReportMeta, section
       }
     }
 
+    if (Array.isArray(a.bySubject) && a.bySubject.length) {
+      sheetAtt.addRow([])
+      const hSub = sheetAtt.addRow(['Matière', 'Absents', 'Retards'])
+      styleHeader(hSub, PRIMARY)
+      for (const subj of a.bySubject as Array<Record<string, unknown>>) {
+        sheetAtt.addRow([subj.name, subj.absent ?? 0, subj.late ?? 0])
+      }
+    }
+
     if (Array.isArray(a.mostAbsentStudents) && a.mostAbsentStudents.length) {
       sheetAtt.addRow([])
       const hMost = sheetAtt.addRow(['Élèves les plus absents', 'Nb absences'])
@@ -233,6 +271,56 @@ export async function streamReportExcel(res: Response, meta: ReportMeta, section
       }
     }
     autoWidth(sheetTeach)
+  }
+
+  // ── PERSONNEL RH ──────────────────────────────────────────────────────────
+  if (sections.staff) {
+    const s = sections.staff as Record<string, unknown>
+    const sheetStaff = wb.addWorksheet('Personnel RH', { properties: { tabColor: { argb: 'FF0EA5E9' } } })
+    sheetStaff.columns = [{ width: 32 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }]
+    const hStaff = sheetStaff.addRow(['Indicateur', 'Valeur'])
+    styleHeader(hStaff, PRIMARY)
+    ;[
+      ['Personnel actif', s.totalStaff],
+      ['Présences', s.present],
+      ['Retards', s.late],
+      ['Absences', s.absent],
+      ['Départs anticipés', s.earlyDeparture],
+      ['Taux ponctualité (%)', s.punctualityRate],
+      ['Pénalités appliquées', s.penaltiesApplied],
+      ['Montant pénalités XOF', s.penaltyAmount],
+      ['Contrats actifs', s.contractsActive],
+      ['Masse brute XOF', s.grossSalary],
+      ['Masse nette estimée XOF', s.netSalary]
+    ].forEach(([label, value]) => sheetStaff.addRow([label, value ?? 0]))
+
+    if (s.byRole && typeof s.byRole === 'object') {
+      sheetStaff.addRow([])
+      const hRole = sheetStaff.addRow(['Rôle', 'Nombre'])
+      styleHeader(hRole, ACCENT)
+      for (const [role, count] of Object.entries(s.byRole as Record<string, number>)) {
+        sheetStaff.addRow([role, count])
+      }
+    }
+
+    if (Array.isArray(s.attendanceByStaff) && s.attendanceByStaff.length) {
+      sheetStaff.addRow([])
+      const hRows = sheetStaff.addRow(['Personnel', 'Présences', 'Retards', 'Absences', 'Départs anticipés', 'Pénalités XOF'])
+      styleHeader(hRows, '0EA5E9')
+      for (const row of s.attendanceByStaff as Array<Record<string, unknown>>) {
+        sheetStaff.addRow([row.name, row.present ?? 0, row.late ?? 0, row.absent ?? 0, row.earlyDeparture ?? 0, row.penalties ?? 0])
+      }
+    }
+
+    if (Array.isArray(s.salaryByStaff) && s.salaryByStaff.length) {
+      sheetStaff.addRow([])
+      const hSalary = sheetStaff.addRow(['Personnel', 'Salaire base', 'Pénalités', 'Net estimé'])
+      styleHeader(hSalary, '10B981')
+      for (const row of s.salaryByStaff as Array<Record<string, unknown>>) {
+        sheetStaff.addRow([row.name, row.baseSalary ?? 0, row.penalties ?? 0, row.netSalary ?? 0])
+      }
+    }
+    autoWidth(sheetStaff)
   }
 
   // ── DISCIPLINE ────────────────────────────────────────────────────────────
@@ -276,7 +364,103 @@ export async function streamReportExcel(res: Response, meta: ReportMeta, section
     autoWidth(sheetCal)
   }
 
-  // ── HISTORIQUE (placeholder for audit trail) ──────────────────────────────
+  // ── ADMINISTRATIF ────────────────────────────────────────────────────────
+  if (sections.administrative) {
+    const a = sections.administrative as Record<string, unknown>
+    const sheetAdmin = wb.addWorksheet('Administratif', { properties: { tabColor: { argb: 'FF14B8A6' } } })
+    sheetAdmin.columns = [{ width: 34 }, { width: 18 }]
+    const hAdmin = sheetAdmin.addRow(['Indicateur', 'Valeur'])
+    styleHeader(hAdmin, PRIMARY)
+    ;[
+      ['Nouvelles inscriptions', a.newStudents],
+      ['Admissions', a.admissions],
+      ['Réinscriptions', a.reEnrollments],
+      ['Transferts entrants', a.transfersIn],
+      ['Départs / sorties', a.departures],
+      ['Documents chargés', a.documents],
+      ['Documents officiels générés', a.officialDocuments],
+      ['Attestations générées', a.attestationsGenerated],
+      ['Certificats générés', a.certificatesGenerated],
+      ['Classes suivies', a.totalClassrooms]
+    ].forEach(([label, value]) => sheetAdmin.addRow([label, value ?? 0]))
+
+    if (a.byOfficialDocumentType && typeof a.byOfficialDocumentType === 'object') {
+      sheetAdmin.addRow([])
+      const hDocs = sheetAdmin.addRow(['Type document officiel', 'Nombre'])
+      styleHeader(hDocs, ACCENT)
+      for (const [type, count] of Object.entries(a.byOfficialDocumentType as Record<string, number>)) {
+        sheetAdmin.addRow([type, count])
+      }
+    }
+
+    if (Array.isArray(a.classroomEnrollments) && a.classroomEnrollments.length) {
+      sheetAdmin.addRow([])
+      const hCls = sheetAdmin.addRow(['Classe', 'Inscrits', 'Capacité', 'Taux remplissage'])
+      styleHeader(hCls, '14B8A6')
+      for (const cls of a.classroomEnrollments as Array<Record<string, unknown>>) {
+        const row = sheetAdmin.addRow([cls.name, cls.enrolled ?? 0, cls.capacity ?? 0, cls.fillRate ?? 0])
+        row.getCell(4).numFmt = '0"%"'
+      }
+    }
+    autoWidth(sheetAdmin)
+  }
+
+  // ── GRAPHIQUES / DONNÉES DE PILOTAGE ────────────────────────────────────
+  const sheetCharts = wb.addWorksheet('Graphiques', { properties: { tabColor: { argb: 'FF0F172A' } } })
+  sheetCharts.columns = [{ width: 28 }, { width: 18 }, { width: 18 }, { width: 36 }]
+  sheetCharts.addRow(['Graphiques professionnels - données prêtes pour tableaux croisés et filtres'])
+  sheetCharts.getRow(1).font = { name: 'Calibri', bold: true, size: 14, color: { argb: `FF${PRIMARY}` } }
+  if (sections.finance && Array.isArray((sections.finance as Record<string, unknown>).monthlyTrend)) {
+    addChartBlock(
+      sheetCharts,
+      'Finance - revenus par mois',
+      ['Mois', 'Montant XOF'],
+      ((sections.finance as Record<string, unknown>).monthlyTrend as Array<Record<string, unknown>>).map((item) => [String(item.label), Number(item.collected ?? 0)])
+    )
+  }
+  if (sections.pedagogy && Array.isArray((sections.pedagogy as Record<string, unknown>).byClassroom)) {
+    addChartBlock(
+      sheetCharts,
+      'Pédagogie - moyennes par classe',
+      ['Classe', 'Moyenne'],
+      ((sections.pedagogy as Record<string, unknown>).byClassroom as Array<Record<string, unknown>>).map((item) => [String(item.name), Number(item.average ?? 0)])
+    )
+  }
+  if (sections.attendance && Array.isArray((sections.attendance as Record<string, unknown>).byClassroom)) {
+    addChartBlock(
+      sheetCharts,
+      'Présence - absences par classe',
+      ['Classe', 'Absences', 'Retards'],
+      ((sections.attendance as Record<string, unknown>).byClassroom as Array<Record<string, unknown>>).map((item) => [String(item.name), Number(item.absent ?? 0), Number(item.late ?? 0)])
+    )
+  }
+  if (sections.discipline && (sections.discipline as Record<string, unknown>).byKind) {
+    addChartBlock(
+      sheetCharts,
+      'Discipline - incidents par type',
+      ['Type', 'Nombre'],
+      Object.entries((sections.discipline as Record<string, unknown>).byKind as Record<string, number>).map(([kind, count]) => [kind, count])
+    )
+  }
+  if (sections.staff && Array.isArray((sections.staff as Record<string, unknown>).attendanceByStaff)) {
+    addChartBlock(
+      sheetCharts,
+      'Personnel - retards et absences',
+      ['Personnel', 'Retards', 'Absences'],
+      ((sections.staff as Record<string, unknown>).attendanceByStaff as Array<Record<string, unknown>>).map((item) => [String(item.name), Number(item.late ?? 0), Number(item.absent ?? 0)])
+    )
+  }
+  if (sections.staff && Array.isArray((sections.staff as Record<string, unknown>).salaryByStaff)) {
+    addChartBlock(
+      sheetCharts,
+      'Personnel - salaires nets estimés',
+      ['Personnel', 'Net XOF'],
+      ((sections.staff as Record<string, unknown>).salaryByStaff as Array<Record<string, unknown>>).map((item) => [String(item.name), Number(item.netSalary ?? 0)])
+    )
+  }
+  autoWidth(sheetCharts)
+
+  // ── TRAÇABILITÉ ──────────────────────────────────────────────────────────
   const sheetInfo = wb.addWorksheet('Infos export', { properties: { tabColor: { argb: 'FF64748B' } } })
   sheetInfo.addRow(['Champ', 'Valeur'])
   sheetInfo.addRow(['École', meta.schoolName])

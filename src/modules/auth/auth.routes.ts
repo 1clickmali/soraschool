@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
-import { UserRole } from '@prisma/client'
+import { InstitutionStatus, ThemePreference, UserRole } from '@prisma/client'
 import { prisma } from '../../config/prisma'
 import { env } from '../../config/env'
 import { asyncHandler } from '../../lib/async'
@@ -73,6 +73,12 @@ const verifyOtpSchema = z.object({
   })
 })
 
+const themePreferenceSchema = z.object({
+  body: z.object({
+    themePreference: z.nativeEnum(ThemePreference)
+  })
+})
+
 function tokenPayload(user: {
   id: string
   role: UserRole
@@ -123,6 +129,9 @@ authRoutes.post(
         select: { id: true, status: true }
       })
       if (!institution) throw badRequest('Établissement introuvable')
+      if (institution.status === InstitutionStatus.SUSPENDED || institution.status === InstitutionStatus.DELETED) {
+        throw forbidden("L’accès de cet établissement est suspendu. Veuillez contacter la direction ou SoraSchool.")
+      }
       institutionId = institution.id
 
       const existingUser = await prisma.user.findFirst({ where: { institutionId, phone: { in: phoneVariants }, isActive: true } })
@@ -181,6 +190,10 @@ authRoutes.post(
     const institution = schoolSlug
       ? await prisma.institution.findUnique({ where: { slug: schoolSlug } })
       : null
+    if (schoolSlug && !institution) throw badRequest('Établissement introuvable')
+    if (institution && (institution.status === InstitutionStatus.SUSPENDED || institution.status === InstitutionStatus.DELETED)) {
+      throw forbidden("L’accès de cet établissement est suspendu. Veuillez contacter la direction ou SoraSchool.")
+    }
     const institutionId = institution?.id ?? null
 
     const otp = await prisma.otpCode.findFirst({
@@ -261,7 +274,8 @@ authRoutes.post(
         establishmentId: user.establishmentId,
         firstName: user.firstName,
         lastName: user.lastName,
-        phone: user.phone
+        phone: user.phone,
+        themePreference: user.themePreference
       },
       ...tokens
     })
@@ -299,9 +313,38 @@ authRoutes.get(
         phone: true,
         email: true,
         avatarUrl: true,
-        preferredLanguage: true
+        preferredLanguage: true,
+        themePreference: true
       }
     })
+    res.json({ user })
+  })
+)
+
+authRoutes.patch(
+  '/theme',
+  authenticate,
+  validate(themePreferenceSchema),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { themePreference: req.body.themePreference },
+      select: { id: true, themePreference: true }
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        institutionId: req.user!.institutionId,
+        actorId: req.user!.id,
+        action: 'THEME_PREFERENCE_UPDATED',
+        entity: 'User',
+        entityId: req.user!.id,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        metadata: { themePreference: user.themePreference }
+      }
+    })
+
     res.json({ user })
   })
 )

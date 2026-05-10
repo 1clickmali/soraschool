@@ -1,5 +1,7 @@
 import { getSchoolToken, getSchoolRefreshToken, setSchoolTokens, removeSchoolTokens } from "./school-auth";
 import { getApiBaseUrl } from "./api-url";
+import { idempotencyKeyFor, idempotencyKeyForForm } from "./idempotency";
+import type { ThemePreference } from "./api";
 
 const apiUrl = (endpoint: string) => `${getApiBaseUrl()}${endpoint}`;
 
@@ -53,6 +55,8 @@ export async function schoolApiRequest<T>(
     "Content-Type": "application/json",
     ...headers,
   };
+  const idemKey = idempotencyKeyFor(method, endpoint, body);
+  if (idemKey && !requestHeaders["Idempotency-Key"]) requestHeaders["Idempotency-Key"] = idemKey;
 
   if (!skipAuth) {
     const token = getSchoolToken();
@@ -134,10 +138,14 @@ const del = <T>(endpoint: string, options?: Omit<ApiOptions, "method" | "body">)
 
 async function uploadForm<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
   const token = getSchoolToken();
+  const idemKey = idempotencyKeyForForm("POST", endpoint, formData);
   try {
     const res = await fetch(apiUrl(endpoint), {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(idemKey ? { "Idempotency-Key": idemKey } : {}),
+      },
       body: formData,
     });
     if (!res.ok) {
@@ -193,7 +201,7 @@ export async function downloadProtectedFile(
   const win = pendingWindow!;
   win.document.open();
   win.document.write(`<!doctype html>
-    <html>é
+    <html>
       <head>
         <title>${filename.replace(/</g, "&lt;")}</title>
         <style>
@@ -261,8 +269,18 @@ export const schoolAuthApi = {
     };
   },
 
+  updateTheme: (themePreference: ThemePreference) =>
+    patch<{ user: Pick<SchoolUser, "id" | "themePreference"> }>("/api/auth/theme", { themePreference }),
+
   getInstitutionBySlug: (slug: string) =>
     get<{ institution: SchoolInstitution }>(`/api/institutions/slug/${slug}`, { skipAuth: true }),
+};
+
+export const publicApi = {
+  resolveSchool: (query: string) =>
+    get<{ institution: SchoolInstitution }>(`/api/public/schools/resolve?query=${encodeURIComponent(query)}`, { skipAuth: true }),
+  createPlanOrder: (data: PublicPlanOrderInput) =>
+    post<{ order: PublicPlanOrder; message: string }>("/api/public/plan-orders", data, { skipAuth: true }),
 };
 
 export const schoolApi = {
@@ -294,6 +312,13 @@ export const schoolApi = {
       guardianPhone: data.guardianPhone || data.parentPhone || undefined,
       guardianRelation: data.guardianRelation || data.parentRelation || undefined,
     }),
+  importStudentsExcel: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return uploadForm<StudentImportResult>("/api/students/import-excel", form);
+  },
+  downloadStudentImportTemplate: () =>
+    downloadProtectedFile("/api/students/import-template", "modele-import-eleves-soraschool.xlsx"),
   getStudent: (id: string) =>
     get<{ student: Student }>(`/api/students/${id}`),
   updateStudent: (id: string, data: Partial<CreateStudentInput> & { status?: Student["status"] }) =>
@@ -370,6 +395,18 @@ export const schoolApi = {
       ...data,
       provider: mapProvider(data.provider || data.method),
     }),
+  shareParentDocument: (data: ShareParentDocumentInput) => {
+    if (data.documentType === "INVOICE") {
+      return post<ShareParentDocumentResponse>(`/api/payments/invoices/${data.invoiceId}/share-parent`, { channel: data.channel });
+    }
+    if (data.documentType === "RECEIPT") {
+      return post<ShareParentDocumentResponse>(`/api/payments/${data.paymentId}/share-parent`, { channel: data.channel });
+    }
+    return post<ShareParentDocumentResponse>(
+      `/api/grades/report-cards/${data.studentId}/${data.periodId}/share-parent`,
+      { channel: data.channel }
+    );
+  },
 
   attendanceSlots: (date?: string) => {
     const qs = date ? `?date=${date}` : "";
@@ -444,25 +481,55 @@ export const schoolApi = {
   disciplineScores: () =>
     get<{ scores: DisciplineScoreRecord[] }>("/api/discipline/scores"),
 
-  documents: (filters?: { ownerType?: string; ownerId?: string; type?: string; search?: string }) => {
+  documents: (filters?: { ownerType?: string; ownerId?: string; type?: string; search?: string; folderId?: string; category?: string }) => {
     const params = new URLSearchParams();
     if (filters?.ownerType) params.append("ownerType", filters.ownerType);
     if (filters?.ownerId) params.append("ownerId", filters.ownerId);
     if (filters?.type) params.append("type", filters.type);
     if (filters?.search) params.append("search", filters.search);
+    if (filters?.folderId) params.append("folderId", filters.folderId);
+    if (filters?.category) params.append("category", filters.category);
     const qs = params.toString();
     return get<{ documents: SchoolDocument[] }>(`/api/documents${qs ? `?${qs}` : ""}`);
   },
-  uploadDocuments: (ownerType: string, ownerId: string, type: string, files: File[], title?: string) => {
+  documentFolders: () => get<{ folders: DocumentFolder[] }>("/api/documents/folders"),
+  createDocumentFolder: (data: { name: string; category?: string; parentFolderId?: string | null }) =>
+    post<{ folder: DocumentFolder }>("/api/documents/folders", data),
+  updateDocumentFolder: (id: string, data: { name?: string; category?: string; parentFolderId?: string | null }) =>
+    patch<{ folder: DocumentFolder }>(`/api/documents/folders/${id}`, data),
+  deleteDocumentFolder: (id: string) => del<{ ok: boolean }>(`/api/documents/folders/${id}`),
+  grantDocumentPermission: (id: string, data: { userId: string; permissions: string[] }) =>
+    post<{ permissions: DocumentPermission[] }>(`/api/documents/${id}/permissions`, data),
+  revokeDocumentPermission: (id: string, permissionId: string) =>
+    del<{ ok: boolean }>(`/api/documents/${id}/permissions/${permissionId}`),
+  uploadDocuments: (ownerType: string, ownerId: string, type: string, files: File[], title?: string, folderId?: string, category?: string) => {
     const form = new FormData();
     form.append("ownerType", ownerType);
     form.append("ownerId", ownerId);
     form.append("type", type);
+    if (folderId) form.append("folderId", folderId);
+    if (category) form.append("category", category);
     if (title) form.append("title", title);
     files.forEach((file) => form.append("files", file));
     return uploadForm<{ documents: SchoolDocument[] }>("/api/documents", form);
   },
   deleteDocument: (id: string) => del<{ ok: boolean }>(`/api/documents/${id}`),
+
+  budgetRequests: (filters?: { status?: string; category?: string; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (filters?.status) qs.append("status", filters.status);
+    if (filters?.category) qs.append("category", filters.category);
+    if (filters?.search) qs.append("search", filters.search);
+    return get<{ requests: BudgetRequest[]; summary: BudgetSummary }>(`/api/budget${qs.toString() ? `?${qs}` : ""}`);
+  },
+  createBudgetRequest: (data: CreateBudgetRequestInput) => post<{ request: BudgetRequest }>("/api/budget", data),
+  reviewBudgetRequest: (id: string, data: { decision: "VALIDATED" | "REFUSED"; amountApproved?: number; directorComment?: string }) =>
+    patch<{ request: BudgetRequest }>(`/api/budget/${id}/review`, data),
+  payBudgetRequest: (id: string, data: { amountPaid: number; note?: string }) =>
+    patch<{ request: BudgetRequest }>(`/api/budget/${id}/pay`, data),
+  pendingEnrollments: () => get<{ enrollments: Enrollment[] }>("/api/students/enrollments/pending"),
+  reviewEnrollment: (studentId: string, data: { decision: "VALIDATED" | "REFUSED" | "CORRECTION_REQUESTED"; comment?: string }) =>
+    patch<{ student: Student }>(`/api/students/${studentId}/enrollment-review`, data),
 
   schedule: (filters?: { search?: string; classroomId?: string; teacherId?: string; subjectId?: string; dayOfWeek?: number }) => {
     const params = new URLSearchParams();
@@ -569,6 +636,59 @@ export const schoolApi = {
   myBadges: (month?: string) =>
     get<{ badges: TeacherBadge[] }>(`/api/teacher-badges/my${month ? `?month=${month}` : ""}`),
 
+  // Gestion du personnel / RH
+  staff: (filters?: { position?: StaffPosition; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (filters?.position) qs.append("position", filters.position);
+    if (filters?.status) qs.append("status", filters.status);
+    return get<{ staff: StaffMember[] }>(`/api/staff${qs.toString() ? `?${qs}` : ""}`);
+  },
+  createStaff: (data: CreateStaffInput) => post<{ staff: StaffMember; qrPayload: string; qrDataUrl: string }>("/api/staff", data),
+  staffMe: () => get<{ staff: StaffMember }>("/api/staff/me"),
+  staffMeSalary: () => get<StaffSalarySnapshot>("/api/staff/me/salary"),
+  staffMeQr: () => get<{ staff: StaffMember; qrPayload: string; qrDataUrl: string }>("/api/staff/me/qr"),
+  staffSettings: () => get<{ settings: StaffAttendanceSettings }>("/api/staff/settings"),
+  updateStaffSettings: (data: Partial<StaffAttendanceSettings>) => patch<{ settings: StaffAttendanceSettings }>("/api/staff/settings", data),
+  staffQr: (id: string) => get<{ staff: StaffMember; qrPayload: string; qrDataUrl: string }>(`/api/staff/${id}/qr`),
+  regenerateStaffQr: (id: string) => post<{ staff: StaffMember; qrPayload: string; qrDataUrl: string }>(`/api/staff/${id}/regenerate-qr`, {}),
+  scanStaffAttendance: (staffId?: string, noScheduleReason?: string) =>
+    post<StaffAttendanceScanResult>("/api/staff/attendance/scan", {
+      ...(staffId ? { staffId } : {}),
+      ...(noScheduleReason ? { noScheduleReason } : {}),
+    }),
+  staffAttendance: (filters?: { staffId?: string; status?: StaffAttendanceStatus }) => {
+    const qs = new URLSearchParams();
+    if (filters?.staffId) qs.append("staffId", filters.staffId);
+    if (filters?.status) qs.append("status", filters.status);
+    return get<{ records: StaffAttendance[] }>(`/api/staff/attendance${qs.toString() ? `?${qs}` : ""}`);
+  },
+  staffAttendanceMe: () => get<{ records: StaffAttendance[] }>("/api/staff/attendance/me"),
+  detectStaffAbsences: () => post<{ created: StaffAttendance[] }>("/api/staff/attendance/detect-absences", {}),
+  staffJustifications: (status?: StaffJustificationStatus) =>
+    get<{ justifications: StaffJustification[] }>(`/api/staff/justifications${status ? `?status=${status}` : ""}`),
+  staffJustificationsMe: () => get<{ justifications: StaffJustification[] }>("/api/staff/justifications/me"),
+  submitStaffJustification: (data: { attendanceId: string; reason: string; attachmentUrl?: string }) =>
+    post<{ justification: StaffJustification }>("/api/staff/justifications", data),
+  reviewStaffJustification: (id: string, data: { status: "ACCEPTED" | "REFUSED" | "NEEDS_MORE_INFO"; directorComment?: string }) =>
+    patch<{ justification: StaffJustification }>(`/api/staff/justifications/${id}/review`, data),
+  staffPayroll: () => get<{ payroll: StaffSalarySnapshot[] }>("/api/staff/payroll"),
+  staffPayrollOne: (staffId: string) => get<StaffSalarySnapshot>(`/api/staff/payroll/${staffId}`),
+  createStaffSalaryAdjustment: (data: CreateStaffSalaryAdjustmentInput) =>
+    post<{ adjustment: StaffSalaryAdjustment; salary: StaffSalarySnapshot }>("/api/staff/salary-adjustments", data),
+  staffRoles: () => get<{ roles: StaffRoleTemplate[] }>("/api/staff/roles"),
+  createStaffRole: (data: { name: string; description?: string; permissions: StaffPermissions }) =>
+    post<{ role: StaffRoleTemplate }>("/api/staff/roles", data),
+  updateStaffPermissions: (id: string, data: { roleTemplateId?: string | null; permissions?: StaffPermissions; systemRole?: SchoolUser["role"] | null; isActive?: boolean }) =>
+    patch<{ staff: StaffMember }>(`/api/staff/${id}/permissions`, data),
+  staffContracts: (staffId?: string) => get<{ contracts: StaffContract[] }>(`/api/staff/contracts${staffId ? `?staffId=${staffId}` : ""}`),
+  createStaffContract: (data: CreateStaffContractInput) => post<{ contract: StaffContract }>("/api/staff/contracts", data),
+  staffTabletLinks: () => get<{ links: StaffTabletLink[] }>("/api/staff/tablet-links"),
+  createStaffTabletLink: (data: { validity: "1d" | "7d" | "1m" | "school_year"; label?: string; deviceHint?: string }) =>
+    post<{ link: StaffTabletLink; token: string; url: string; qrDataUrl: string }>("/api/staff/tablet-links", data),
+  disableStaffTabletLink: (id: string) => patch<{ link: StaffTabletLink }>(`/api/staff/tablet-links/${id}/disable`, {}),
+  staffTabletInfo: (token: string) => get<{ link: StaffTabletLink; institution: SchoolInstitution }>(`/api/staff-tablet/${token}`, { skipAuth: true }),
+  staffTabletScan: (token: string, qrPayload: string) => post<StaffTabletScanResponse>(`/api/staff-tablet/${token}/scan`, { qrPayload }, { skipAuth: true }),
+
   // Notifications
   notifications: (unreadOnly?: boolean) =>
     get<{ notifications: AppNotification[]; unreadCount: number }>(
@@ -640,6 +760,29 @@ export const reportsApi = {
 };
 
 // Types
+export interface PublicPlanOrderInput {
+  plan: "BASIC" | "PREMIUM";
+  schoolName: string;
+  city?: string;
+  country?: string;
+  contactName: string;
+  phone: string;
+  email?: string;
+  whatsapp?: string;
+  message?: string;
+}
+
+export interface PublicPlanOrder extends PublicPlanOrderInput {
+  id: string;
+  planTier: "BASIC" | "PREMIUM";
+  planCode: string;
+  installationFee: number;
+  annualPrice: number;
+  totalFirstYear: number;
+  status: "NEW" | "CONTACTED" | "INVOICE_SENT" | "PAID" | "CANCELED";
+  createdAt: string;
+}
+
 export interface SchoolUser {
   id: string;
   phone: string;
@@ -650,15 +793,17 @@ export interface SchoolUser {
   email?: string;
   institutionId?: string;
   establishmentId?: string;
+  themePreference?: ThemePreference;
 }
 
 export interface SchoolInstitution {
   id: string;
   name: string;
   slug: string;
+  code?: string | null;
   kind?: string;
   type: string;
-  status: "ACTIVE" | "TRIAL" | "SUSPENDED" | "EXPIRED";
+  status: "ACTIVE" | "TRIAL" | "PENDING_PAYMENT" | "SUSPENDED" | "EXPIRED";
   logo?: string;
   logoUrl?: string;
   city?: string;
@@ -753,6 +898,19 @@ export interface Student {
   birthPlace?: string;
   nationality?: string;
   status: "ACTIVE" | "INACTIVE" | "ENROLLED" | "PENDING" | "SUSPENDED" | "GRADUATED" | "TRANSFERRED";
+  enrollmentStatus?: "DRAFT" | "PENDING_VALIDATION" | "VALIDATED" | "REFUSED" | "CANCELED" | "CORRECTION_REQUESTED";
+  createdById?: string | null;
+  updatedById?: string | null;
+  validatedById?: string | null;
+  rejectedById?: string | null;
+  validatedAt?: string | null;
+  rejectedAt?: string | null;
+  validationComment?: string | null;
+  createdBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  updatedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  validatedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  rejectedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  enrollments?: Enrollment[];
   classroomId?: string;
   classroom?: { id: string; name: string; gradeLevel?: Level };
   phone?: string;
@@ -946,6 +1104,38 @@ export interface CreateTeacherInput {
   documentsChecklist?: Record<string, string>;
 }
 
+export interface StudentImportResult {
+  summary: {
+    processedRows: number;
+    created: number;
+    failed: number;
+    pendingValidation: number;
+    validated: number;
+  };
+  students: Array<Pick<Student, "id" | "matricule" | "firstName" | "lastName"> & { enrollmentStatus: string }>;
+  errors: Array<{ row: number; message: string }>;
+}
+
+export interface Enrollment {
+  id: string;
+  institutionId: string;
+  studentId: string;
+  academicYearLabel: string;
+  status: "DRAFT" | "PENDING_VALIDATION" | "VALIDATED" | "REFUSED" | "CANCELED" | "CORRECTION_REQUESTED";
+  createdById?: string | null;
+  validatedById?: string | null;
+  rejectedById?: string | null;
+  validatedAt?: string | null;
+  rejectedAt?: string | null;
+  directorComment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  student?: Student;
+  createdBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  validatedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  rejectedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+}
+
 export interface Classroom {
   id: string;
   name: string;
@@ -1067,6 +1257,35 @@ export interface Payment {
   receiptUrl?: string;
   paidAt?: string;
   createdAt: string;
+}
+
+export type ParentDocumentChannel = "WHATSAPP" | "SMS" | "IN_APP";
+
+export type ShareParentDocumentBaseInput =
+  | { documentType: "INVOICE"; invoiceId: string }
+  | { documentType: "RECEIPT"; paymentId: string }
+  | { documentType: "REPORT_CARD"; studentId: string; periodId: string };
+
+export type ShareParentDocumentInput = ShareParentDocumentBaseInput & { channel: ParentDocumentChannel };
+
+export interface ShareParentDocumentRecipient {
+  parentId: string;
+  parentName: string;
+  phone: string;
+  userId?: string | null;
+  whatsappUrl?: string;
+  smsUrl?: string;
+  status: "READY" | "SENT" | "NO_APP_ACCOUNT";
+}
+
+export interface ShareParentDocumentResponse {
+  ok: boolean;
+  channel: ParentDocumentChannel;
+  documentType: "INVOICE" | "RECEIPT" | "REPORT_CARD";
+  documentUrl: string;
+  appUrl: string;
+  message: string;
+  recipients: ShareParentDocumentRecipient[];
 }
 
 export interface AttendanceRecord {
@@ -1244,6 +1463,256 @@ export interface TeacherBadge {
   teacher?: { id: string; firstName: string; lastName: string; matricule: string };
 }
 
+export type StaffPosition =
+  | "TEACHER"
+  | "SECRETARIAT"
+  | "ACCOUNTANT"
+  | "SUPERVISOR"
+  | "ASSISTANT_DIRECTOR"
+  | "CENSOR"
+  | "EDUCATION_ADVISOR"
+  | "LIBRARIAN"
+  | "CASHIER"
+  | "ADMIN_AGENT"
+  | "GUARD"
+  | "DRIVER"
+  | "CANTEEN"
+  | "CLEANING"
+  | "STOCK_MANAGER"
+  | "OTHER";
+
+export type StaffAttendanceStatus = "PRESENT" | "LATE" | "ABSENT" | "EARLY_DEPARTURE" | "NOT_CHECKED_IN" | "OFF_SCHEDULE_JUSTIFIED";
+export type StaffJustificationStatus = "NONE" | "PENDING" | "ACCEPTED" | "REFUSED" | "NEEDS_MORE_INFO";
+export type StaffPenaltyStatus = "PENDING" | "APPLIED" | "CANCELED" | "WAIVED";
+export type StaffSalaryAdjustmentKind = "BONUS" | "DEDUCTION";
+export type StaffContractStatus = "DRAFT" | "ACTIVE" | "SIGNED" | "ARCHIVED" | "TERMINATED";
+export type StaffPermissions = Record<string, boolean>;
+
+export interface StaffRoleTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  permissions: StaffPermissions;
+  createdAt: string;
+}
+
+export interface StaffMember {
+  id: string;
+  institutionId: string;
+  teacherId?: string | null;
+  userId?: string | null;
+  matricule: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  photoUrl?: string | null;
+  position: StaffPosition;
+  customPosition?: string | null;
+  systemRole?: SchoolUser["role"] | null;
+  baseSalary: number;
+  hireDate?: string | null;
+  contractType?: string | null;
+  status: string;
+  permissions?: StaffPermissions | null;
+  roleTemplateId?: string | null;
+  qrActive: boolean;
+  qrTokenVersion: number;
+  qrGeneratedAt: string;
+  createdAt: string;
+  user?: Pick<SchoolUser, "id" | "role"> & { isActive?: boolean; lastLoginAt?: string | null };
+  teacher?: Teacher | null;
+  roleTemplate?: StaffRoleTemplate | null;
+  contracts?: StaffContract[];
+}
+
+export interface CreateStaffInput {
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  photoUrl?: string;
+  position: StaffPosition;
+  customPosition?: string;
+  baseSalary?: number;
+  hireDate?: string;
+  contractType?: "CDI" | "CDD" | "VACATAIRE" | "STAGE";
+  permissions?: StaffPermissions;
+  roleTemplateId?: string;
+  createAccess?: boolean;
+}
+
+export interface StaffAttendanceSettings {
+  id: string;
+  institutionId: string;
+  defaultCheckInTime: string;
+  defaultCheckOutTime: string;
+  lateToleranceMinutes: number;
+  earlyDepartureToleranceMinutes: number;
+  latePenaltyAmount: number;
+  absencePenaltyAmount: number;
+  justificationDeadlineHours: number;
+  autoApplyPenalties: boolean;
+  policy?: Record<string, unknown>;
+}
+
+export interface StaffAttendance {
+  id: string;
+  institutionId: string;
+  staffId: string;
+  attendanceKey: string;
+  date: string;
+  scheduleSlotId?: string | null;
+  expectedCheckInAt?: string | null;
+  actualCheckInAt?: string | null;
+  expectedCheckOutAt?: string | null;
+  actualCheckOutAt?: string | null;
+  status: StaffAttendanceStatus;
+  method: string;
+  noScheduleReason?: string | null;
+  lateMinutes: number;
+  earlyDepartureMinutes: number;
+  justificationStatus: StaffJustificationStatus;
+  penaltyAmount: number;
+  penaltyApplied: boolean;
+  staff?: StaffMember;
+  penalties?: StaffPenalty[];
+  justification?: StaffJustification | null;
+  createdAt: string;
+}
+
+export interface StaffPenalty {
+  id: string;
+  staffId: string;
+  attendanceId?: string | null;
+  amount: number;
+  reason: string;
+  status: StaffPenaltyStatus;
+  appliedAt?: string | null;
+  canceledAt?: string | null;
+  createdAt: string;
+}
+
+export interface StaffJustification {
+  id: string;
+  staffId: string;
+  attendanceId: string;
+  reason: string;
+  attachmentUrl?: string | null;
+  status: StaffJustificationStatus;
+  directorComment?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  staff?: StaffMember;
+  attendance?: StaffAttendance;
+}
+
+export interface StaffSalaryAdjustment {
+  id: string;
+  staffId: string;
+  kind: StaffSalaryAdjustmentKind;
+  title: string;
+  amount: number;
+  month: number;
+  year: number;
+  createdAt: string;
+}
+
+export interface StaffSalarySnapshot {
+  staff: StaffMember;
+  month: number;
+  year: number;
+  baseSalary: number;
+  bonuses: number;
+  deductions: number;
+  penalties: number;
+  netSalary: number;
+  lateCount: number;
+  absenceCount: number;
+  pendingJustifications: number;
+  acceptedJustifications: number;
+  refusedJustifications: number;
+  adjustments: StaffSalaryAdjustment[];
+  penaltyItems: StaffPenalty[];
+}
+
+export interface CreateStaffSalaryAdjustmentInput {
+  staffId: string;
+  kind: StaffSalaryAdjustmentKind;
+  title: string;
+  amount: number;
+  month: number;
+  year: number;
+}
+
+export interface StaffContract {
+  id: string;
+  institutionId: string;
+  staffId: string;
+  number: string;
+  title: string;
+  salary: number;
+  startsAt: string;
+  endsAt?: string | null;
+  scheduleText?: string | null;
+  generalClauses: string;
+  specificClauses?: string | null;
+  penaltyClauses?: string | null;
+  obligations?: string | null;
+  status: StaffContractStatus;
+  signedAt?: string | null;
+  archivedAt?: string | null;
+  createdAt: string;
+  staff?: StaffMember;
+}
+
+export interface CreateStaffContractInput {
+  staffId: string;
+  title?: string;
+  salary?: number;
+  startsAt: string;
+  endsAt?: string;
+  scheduleText?: string;
+  generalClauses: string;
+  specificClauses?: string;
+  penaltyClauses?: string;
+  obligations?: string;
+  status?: StaffContractStatus;
+}
+
+export interface StaffTabletScanLog {
+  id: string;
+  action: string;
+  result: string;
+  staffId?: string | null;
+  createdAt: string;
+}
+
+export interface StaffTabletLink {
+  id: string;
+  label?: string | null;
+  deviceHint?: string | null;
+  status: "ACTIVE" | "INACTIVE" | "EXPIRED";
+  expiresAt: string;
+  usageCount: number;
+  lastUsedAt?: string | null;
+  createdAt: string;
+  scanLogs?: StaffTabletScanLog[];
+}
+
+export interface StaffAttendanceScanResult {
+  attendance: StaffAttendance;
+  staff: StaffMember;
+  result: "CHECK_IN" | "CHECK_OUT" | "LATE" | "EARLY_DEPARTURE" | "ALREADY_COMPLETE";
+  message: string;
+}
+
+export interface StaffTabletScanResponse extends StaffAttendanceScanResult {
+  scannedAt: string;
+}
+
 export interface DisciplineScoreRecord {
   id: string;
   institutionId: string;
@@ -1296,12 +1765,15 @@ export interface SaaSPlan {
   name: string;
   code: string;
   tier: string;
+  installationFee: number;
   monthlyPrice: number;
   annualPrice: number;
   maxStudents: number | null;
   maxTeachers: number | null;
   maxEstablishments: number;
-  features?: Record<string, boolean>;
+  canCreateBranches: boolean;
+  description?: string;
+  features?: string[] | Record<string, boolean>;
 }
 
 export interface SaaSSubscription {
@@ -1342,14 +1814,90 @@ export interface SubscriptionData {
 
 export interface SchoolDocument {
   id: string;
+  folderId?: string | null;
   ownerType: string;
   ownerId: string;
   type: string;
+  category?: string;
   title: string;
   fileUrl: string;
   mimeType: string;
   sizeBytes: number;
   createdAt: string;
+  updatedAt?: string;
+  folder?: DocumentFolder | null;
+  uploadedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  updatedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  permissions?: DocumentPermission[];
+}
+
+export interface DocumentFolder {
+  id: string;
+  institutionId: string;
+  name: string;
+  category: string;
+  parentFolderId?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  _count?: { documents: number };
+}
+
+export interface DocumentPermission {
+  id: string;
+  institutionId: string;
+  documentId: string;
+  userId: string;
+  permission: "READ" | "WRITE" | "DELETE" | "SHARE" | "DOWNLOAD";
+  grantedById?: string | null;
+  createdAt: string;
+  user?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role" | "phone">;
+  grantedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+}
+
+export interface BudgetRequest {
+  id: string;
+  title: string;
+  category: "REPAIR" | "EVENT" | "SUPPLIES" | "BUILDING" | "IT" | "TRANSPORT" | "EMERGENCY" | "MAINTENANCE" | "OTHER";
+  amountRequested: number;
+  amountApproved?: number | null;
+  amountPaid: number;
+  description?: string | null;
+  urgency: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  desiredDate?: string | null;
+  status: "DRAFT" | "PENDING_VALIDATION" | "VALIDATED" | "REFUSED" | "PAID" | "CANCELED";
+  attachmentUrl?: string | null;
+  directorComment?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requestedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  approvedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  rejectedBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+  paidBy?: Pick<SchoolUser, "id" | "firstName" | "lastName" | "role"> | null;
+}
+
+export interface BudgetSummary {
+  totalRequested: number;
+  totalApproved: number;
+  totalPaid: number;
+  pending: number;
+  validated: number;
+  refused: number;
+}
+
+export interface CreateBudgetRequestInput {
+  title: string;
+  category: BudgetRequest["category"];
+  amountRequested: number;
+  description?: string;
+  urgency?: BudgetRequest["urgency"];
+  desiredDate?: string;
+  attachmentUrl?: string;
+  status?: BudgetRequest["status"];
 }
 
 export interface AttendanceSession {

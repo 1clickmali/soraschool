@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, IdCard, RefreshCw } from "lucide-react";
+import { Download, FileText, RefreshCw } from "lucide-react";
 import { downloadProtectedFile, schoolApi, type SchoolDocument, type Teacher } from "@/lib/school-api";
 
 export default function TeacherDocumentsPage() {
@@ -27,10 +27,9 @@ export default function TeacherDocumentsPage() {
     void load();
   }, []);
 
-  const openTeacherPdf = async (kind: "card" | "profile-pdf" | "contract-pdf") => {
+  const openTeacherPdf = async (kind: "profile-pdf" | "contract-pdf") => {
     if (!teacher) return;
     const names = {
-      card: `carte-professeur-${teacher.matricule || teacher.id}.pdf`,
       "profile-pdf": `fiche-professeur-${teacher.matricule || teacher.id}.pdf`,
       "contract-pdf": `contrat-professeur-${teacher.matricule || teacher.id}.pdf`,
     };
@@ -43,7 +42,7 @@ export default function TeacherDocumentsPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-white">Mes documents</h1>
-          <p className="mt-1 text-sm text-gray-400">Carte professeur, fiche RH, contrat et documents transmis par l’école.</p>
+          <p className="mt-1 text-sm text-gray-400">Fiche RH, contrat et documents transmis par l’école.</p>
         </div>
         <button onClick={load} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/[0.09]">
           <RefreshCw className="h-4 w-4" />
@@ -53,12 +52,7 @@ export default function TeacherDocumentsPage() {
 
       {message && <div className="mb-5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">{message}</div>}
 
-      <div className="mb-6 grid gap-3 md:grid-cols-3">
-        <button onClick={() => openTeacherPdf("card")} disabled={!teacher} className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-5 text-left text-white transition hover:bg-violet-500/15 disabled:opacity-50">
-          <IdCard className="mb-3 h-5 w-5 text-violet-300" />
-          <p className="font-semibold">Carte professeur</p>
-          <p className="mt-1 text-xs text-gray-400">Ouvrir le PDF officiel</p>
-        </button>
+      <div className="mb-6 grid gap-3 md:grid-cols-2">
         <button onClick={() => openTeacherPdf("profile-pdf")} disabled={!teacher} className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-5 text-left text-white transition hover:bg-white/[0.07] disabled:opacity-50">
           <FileText className="mb-3 h-5 w-5 text-emerald-300" />
           <p className="font-semibold">Fiche professeur</p>

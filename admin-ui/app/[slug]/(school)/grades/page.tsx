@@ -12,6 +12,9 @@ import {
   FileText,
   Award,
   GraduationCap,
+  MessageCircle,
+  Smartphone,
+  Bell,
 } from "lucide-react";
 import {
   downloadProtectedFile,
@@ -20,6 +23,7 @@ import {
   type Classroom,
   type CreateGradeInput,
   type GradePeriod,
+  type ParentDocumentChannel,
   type Student,
   type Subject,
 } from "@/lib/school-api";
@@ -27,6 +31,11 @@ import { SecureImage } from "@/components/ui/secure-image";
 import { cn } from "@/lib/utils";
 
 const PERIODS = ["1er Trimestre", "2ème Trimestre", "3ème Trimestre"];
+const REPORT_SHARE_CHANNELS: Array<{ channel: ParentDocumentChannel; label: string; title: string; icon: typeof MessageCircle; className: string }> = [
+  { channel: "WHATSAPP", label: "WA", title: "Envoyer le bulletin par WhatsApp", icon: MessageCircle, className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20" },
+  { channel: "SMS", label: "SMS", title: "Envoyer le bulletin par SMS", icon: Smartphone, className: "border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" },
+  { channel: "IN_APP", label: "App", title: "Notifier le bulletin dans l'application parent", icon: Bell, className: "border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20" },
+];
 
 interface GradeEntry {
   studentId: string;
@@ -43,6 +52,7 @@ export default function GradesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingDecision, setSavingDecision] = useState(false);
+  const [sharingKey, setSharingKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
@@ -159,6 +169,44 @@ export default function GradesPage() {
     if (error) setSaveError(error);
   };
 
+  const shareReportCard = async (student: Student, channel: ParentDocumentChannel) => {
+    if (!reportPeriodId) {
+      setSaveError("Choisissez une période avant d'envoyer le bulletin.");
+      return;
+    }
+
+    const key = `${student.id}:${reportPeriodId}:${channel}`;
+    setSharingKey(key);
+    setSaveError(null);
+    setSaveSuccess(null);
+
+    const { data, error } = await schoolApi.shareParentDocument({
+      documentType: "REPORT_CARD",
+      studentId: student.id,
+      periodId: reportPeriodId,
+      channel,
+    });
+    setSharingKey(null);
+
+    if (error) {
+      setSaveError(error);
+      return;
+    }
+
+    if (channel === "WHATSAPP") {
+      const firstLink = data?.recipients.find((recipient) => recipient.whatsappUrl)?.whatsappUrl;
+      if (firstLink) window.open(firstLink, "_blank", "noopener,noreferrer");
+      setSaveSuccess("Message WhatsApp préparé avec le lien sécurisé du bulletin.");
+      return;
+    }
+
+    const sentCount = data?.recipients.filter((recipient) => recipient.status === "SENT").length || 0;
+    setSaveSuccess(channel === "SMS"
+      ? `SMS bulletin envoyé à ${sentCount} parent${sentCount > 1 ? "s" : ""}.`
+      : `Notification bulletin envoyée à ${sentCount} parent${sentCount > 1 ? "s" : ""}.`
+    );
+  };
+
   const openCertificate = async (student: Student, type: "SCHOOL_CERTIFICATE" | "DIPLOMA") => {
     const filename = `${type === "DIPLOMA" ? "diplome" : "attestation"}-${student.matricule || student.id}.pdf`;
     const error = await downloadProtectedFile(`/api/grades/certificates/${student.id}/pdf?type=${type}`, filename, "open");
@@ -193,7 +241,7 @@ export default function GradesPage() {
   return (
     <div>
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-bold font-heading text-white">Notes</h1>
+        <h1 className="text-2xl font-bold font-heading text-white">Évaluations</h1>
         <p className="text-gray-400 text-sm mt-1">Saisie et gestion des notes</p>
       </motion.div>
 
@@ -292,7 +340,7 @@ export default function GradesPage() {
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Élève</span>
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Note /20</span>
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Commentaire</span>
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Documents</span>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Documents officiels</span>
             </div>
             <div className="divide-y divide-white/[0.04]">
               {entries.map((entry, idx) => {
@@ -309,7 +357,7 @@ export default function GradesPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: idx * 0.02 }}
-                    className="grid grid-cols-[1fr_120px_1fr_250px] items-center px-5 py-3 hover:bg-white/[0.02] transition-colors gap-4"
+                    className="grid grid-cols-[1fr_120px_1fr_360px] items-center px-5 py-3 hover:bg-white/[0.02] transition-colors gap-4"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <SecureImage
@@ -363,6 +411,22 @@ export default function GradesPage() {
                         <FileText className="w-3.5 h-3.5" />
                         Bulletin
                       </button>
+                      {REPORT_SHARE_CHANNELS.map(({ channel, label, title, icon: Icon, className }) => {
+                        const key = `${entry.student.id}:${reportPeriodId}:${channel}`;
+                        return (
+                          <button
+                            key={channel}
+                            type="button"
+                            title={title}
+                            disabled={!reportPeriodId || sharingKey === key}
+                            onClick={() => void shareReportCard(entry.student, channel)}
+                            className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition disabled:cursor-wait disabled:opacity-50", className)}
+                          >
+                            {sharingKey === key ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
+                            {label}
+                          </button>
+                        );
+                      })}
                       <button
                         type="button"
                         onClick={() => void openCertificate(entry.student, "SCHOOL_CERTIFICATE")}

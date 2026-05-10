@@ -19,10 +19,12 @@ import {
   RefreshCw,
   Upload,
   FileText,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
-import { schoolApi, type Student, type Classroom, type CreateStudentInput } from "@/lib/school-api";
+import { schoolApi, type Student, type Classroom, type CreateStudentInput, type StudentImportResult } from "@/lib/school-api";
 import { SecureImage } from "@/components/ui/secure-image";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 const STUDENT_DOCUMENTS = [
@@ -149,6 +151,8 @@ export default function StudentsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<StudentImportResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -273,6 +277,31 @@ export default function StudentsPage() {
     }, 900);
   };
 
+  const downloadImportTemplate = async () => {
+    setFormError(null);
+    const error = await schoolApi.downloadStudentImportTemplate();
+    if (error) setFormError(error);
+  };
+
+  const handleImportExcel = async (file?: File) => {
+    if (!file) return;
+    setImporting(true);
+    setFormError(null);
+    setFormSuccess(null);
+    setImportResult(null);
+    const { data, error } = await schoolApi.importStudentsExcel(file);
+    setImporting(false);
+    if (error && !data) {
+      setFormError(error);
+      return;
+    }
+    if (data) {
+      setImportResult(data);
+      setFormSuccess(`${data.summary.created} apprenant${data.summary.created > 1 ? "s" : ""} importé${data.summary.created > 1 ? "s" : ""}. ${data.summary.failed} ligne${data.summary.failed > 1 ? "s" : ""} en erreur.`);
+      await loadStudents();
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -282,21 +311,78 @@ export default function StudentsPage() {
         className="flex items-center justify-between mb-6"
       >
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Élèves</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Apprenants</h1>
           <p className="text-gray-400 text-sm mt-1">
-            {loading ? "Chargement..." : `${students.length} élève${students.length !== 1 ? "s" : ""}`}
+            {loading ? "Chargement..." : `${students.length} apprenant${students.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => { resetForm(); setModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)]"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un élève
-        </motion.button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={downloadImportTemplate}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/[0.05] text-gray-200 hover:bg-white/[0.09] text-sm font-semibold transition-all"
+          >
+            <Download className="w-4 h-4" />
+            Modèle Excel
+          </motion.button>
+          <label className={cn(
+            "flex cursor-pointer items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/15 px-4 py-2.5 text-sm font-semibold text-blue-300 transition-all hover:bg-blue-500/25",
+            importing && "cursor-wait opacity-60"
+          )}>
+            {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+            Importer Excel
+            <input
+              hidden
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={importing}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void handleImportExcel(file);
+              }}
+            />
+          </label>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { resetForm(); setModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un apprenant
+          </motion.button>
+        </div>
       </motion.div>
+
+      {(formError || formSuccess || importResult) && (
+        <div className="mb-5 space-y-2">
+          {formError && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {formError}
+            </div>
+          )}
+          {formSuccess && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+              {formSuccess}
+            </div>
+          )}
+          {importResult?.errors?.length ? (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              <p className="font-semibold">Lignes à corriger dans le fichier Excel :</p>
+              <ul className="mt-2 space-y-1">
+                {importResult.errors.slice(0, 6).map((item) => (
+                  <li key={`${item.row}-${item.message}`}>Ligne {item.row} : {item.message}</li>
+                ))}
+              </ul>
+              {importResult.errors.length > 6 && (
+                <p className="mt-2 text-xs text-amber-300/80">+ {importResult.errors.length - 6} autre(s) erreur(s)</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Filters */}
       <motion.div

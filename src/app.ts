@@ -11,6 +11,8 @@ import { swaggerSpec } from './config/swagger'
 import { logger } from './lib/logger'
 import { ApiError, errorHandler } from './lib/errors'
 import { authRoutes } from './modules/auth/auth.routes'
+import { publicRoutes } from './modules/public/public.routes'
+import { sharedDocumentsRoutes } from './modules/shared-documents/shared-documents.routes'
 import { superAdminRoutes } from './modules/super-admin/super-admin.routes'
 import { centralAdminRoutes } from './modules/central-admin/central-admin.routes'
 import { institutionsRoutes } from './modules/institutions/institutions.routes'
@@ -32,9 +34,16 @@ import { scheduleRoutes } from './modules/schedule/schedule.routes'
 import { homeworksRoutes } from './modules/homeworks/homeworks.routes'
 import { calendarRoutes } from './modules/calendar/calendar.routes'
 import { reportsRoutes } from './modules/reports/reports.routes'
+import { budgetRoutes } from './modules/budget/budget.routes'
 import { platformRoutes } from './modules/platform/platform.routes'
+import { curriculumRoutes } from './modules/curriculum/curriculum.routes'
+import { annualDecisionRoutes } from './modules/annual-decision/annual-decision.routes'
+import { subscriptionYearsRoutes } from './modules/subscription-years/subscription-years.routes'
+import { staffRoutes } from './modules/staff/staff.routes'
+import { staffTabletRoutes } from './modules/staff/staff-tablet.routes'
 import { getPlatformBranding } from './lib/platform-branding'
 import { enforceSubscription } from './middlewares/subscription'
+import { idempotency } from './middlewares/idempotency'
 
 export function createApp() {
   const app = express()
@@ -63,6 +72,7 @@ export function createApp() {
       legacyHeaders: false
     })
   )
+  app.use(idempotency)
 
   app.get('/', async (_req, res) => {
     try {
@@ -81,9 +91,15 @@ export function createApp() {
   app.get('/api', async (_req, res) => {
     try {
       const branding = await getPlatformBranding()
-      res.json({ ok: true, name: `${branding.appName} API`, version: '0.1.0', health: '/health' })
+      res.json({
+        ok: true,
+        name: `${branding.appName} API`,
+        version: '0.1.0',
+        docs: '/docs/',
+        health: '/health'
+      })
     } catch {
-      res.json({ ok: true, version: '0.1.0', health: '/health' })
+      res.json({ ok: true, version: '0.1.0', docs: '/docs/', health: '/health' })
     }
   })
 
@@ -97,6 +113,9 @@ export function createApp() {
   })
 
   app.use('/api/platform', platformRoutes)
+  app.use('/api/public', publicRoutes)
+  app.use('/api/shared-documents', sharedDocumentsRoutes)
+  app.use('/api/staff-tablet', staffTabletRoutes)
   if (env.NODE_ENV !== 'production') {
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
   }
@@ -125,6 +144,11 @@ export function createApp() {
   app.use('/api/messages', sub, messagesRoutes)
   app.use('/api/dashboard', sub, dashboardRoutes)
   app.use('/api/reports', sub, reportsRoutes)
+  app.use('/api/budget', sub, budgetRoutes)
+  app.use('/api/curriculum', sub, curriculumRoutes)
+  app.use('/api/annual-decisions', sub, annualDecisionRoutes)
+  app.use('/api/subscription-years', subscriptionYearsRoutes)
+  app.use('/api/staff', sub, staffRoutes)
 
   app.use((_req, _res, next) => next(new ApiError(404, 'Route introuvable', 'ROUTE_NOT_FOUND')))
   app.use(errorHandler)

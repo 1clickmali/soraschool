@@ -42,7 +42,7 @@ export default function PaymentsPage() {
     <div className="space-y-6 max-w-[1600px]">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Paiements SaaS</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Finance SaaS - Paiements</h1>
           <p className="text-gray-400 text-sm mt-0.5">{payments.length} paiement{payments.length !== 1 ? "s" : ""} enregistré{payments.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

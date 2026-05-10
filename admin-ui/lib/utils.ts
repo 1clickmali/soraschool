@@ -5,12 +5,13 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency = "XOF"): string {
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
   return new Intl.NumberFormat("fr-CI", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(safeAmount);
 }
 
 export function formatNumber(num: number): string {
@@ -66,12 +67,9 @@ export function getStatusColor(status: string): string {
 
 export function getTierColor(tier: string): string {
   const colors: Record<string, string> = {
-    FREE: "gray",
-    STARTER: "blue",
-    GROWTH: "purple",
     BASIC: "blue",
     PREMIUM: "purple",
-    ENTERPRISE: "gold",
+    ENTERPRISE: "purple",
   };
   return colors[tier] || "gray";
 }

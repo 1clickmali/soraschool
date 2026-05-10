@@ -141,7 +141,7 @@ export default function ShopPage() {
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-white">Boutique & stock</h1>
+          <h1 className="text-2xl font-bold font-heading text-white">Stock & fournitures</h1>
           <p className="text-gray-400 text-sm mt-0.5">Produits, approvisionnements, alertes de rupture</p>
         </div>
         <Button size="sm" variant="secondary" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={load}>

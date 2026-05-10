@@ -67,7 +67,6 @@ function Feedback({ error, success }: { error?: string | null; success?: string 
 
 export default function ParametresPage() {
   const [me, setMe] = useState<{ id: string; firstName?: string; lastName?: string; phone: string; email?: string } | null>(null);
-  const [branding, setBranding] = useState<PlatformBranding | null>(null);
   const [admins, setAdmins] = useState<Array<{ id: string; firstName: string; lastName: string; phone: string; email?: string; createdAt: string; lastLoginAt?: string }>>([]);
 
   const [brandingForm, setBrandingForm] = useState<Partial<PlatformBranding>>({});
@@ -88,10 +87,7 @@ export default function ParametresPage() {
       superAdminApi.superAdmins(),
     ]);
     if (meRes.data) setMe(meRes.data as any);
-    if (brandingRes.data?.branding) {
-      setBranding(brandingRes.data.branding);
-      setBrandingForm(brandingRes.data.branding);
-    }
+    if (brandingRes.data?.branding) setBrandingForm(brandingRes.data.branding);
     if (adminsRes.data?.admins) setAdmins(adminsRes.data.admins);
   }, []);
 
@@ -103,7 +99,7 @@ export default function ParametresPage() {
     const { data, error } = await superAdminApi.updatePlatformBranding(brandingForm);
     setBrandingSaving(false);
     if (error) { setBrandingFeedback({ error }); return; }
-    if (data?.branding) { setBranding(data.branding); setBrandingForm(data.branding); }
+    if (data?.branding) setBrandingForm(data.branding);
     setBrandingFeedback({ success: "Paramètres sauvegardés !" });
     setTimeout(() => setBrandingFeedback({}), 3000);
   };
@@ -115,7 +111,7 @@ export default function ParametresPage() {
     const { data, error } = await superAdminApi.uploadPlatformBrandingAsset("logo", file);
     setLogoUploading(false);
     if (error) { setBrandingFeedback({ error }); return; }
-    if (data?.branding) { setBranding(data.branding); setBrandingForm((f) => ({ ...f, logoUrl: data.branding.logoUrl })); }
+    if (data?.branding) setBrandingForm((f) => ({ ...f, logoUrl: data.branding.logoUrl }));
     setBrandingFeedback({ success: "Logo mis à jour !" });
     setTimeout(() => setBrandingFeedback({}), 3000);
   };
@@ -141,7 +137,7 @@ export default function ParametresPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-heading text-2xl font-bold text-white">Paramètres</h1>
+        <h1 className="font-heading text-2xl font-bold text-white">Configuration plateforme</h1>
         <p className="mt-1 text-sm text-gray-400">Gérez votre profil, le branding de la plateforme et les accès super admin.</p>
       </motion.div>
 
