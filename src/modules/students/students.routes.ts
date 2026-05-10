@@ -13,7 +13,7 @@ import { writeAuditLog } from '../../lib/audit'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
-import { renderEnrollmentFormPdf, renderStudentCardPdf, type CardSide } from '../pdf/pdf.service'
+import { renderEnrollmentFormPdf, renderStudentCardPdf } from '../pdf/pdf.service'
 
 export const studentsRoutes = Router()
 studentsRoutes.use(authenticate, requireTenantUser)
@@ -1189,8 +1189,7 @@ studentsRoutes.get(
   requireRoles(...cardGeneratorRoles),
   asyncHandler(async (req, res) => {
     await ensureStudentReadable(req, req.params.id)
-    const side = String(req.query.side ?? 'both') as CardSide
-    const buffer = await renderStudentCardPdf(req.institutionId!, req.params.id, String(req.query.lang ?? 'FR'), side)
+    const buffer = await renderStudentCardPdf(req.institutionId!, req.params.id, String(req.query.lang ?? 'FR'))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="carte-eleve-${req.params.id}.pdf"`)
     res.send(buffer)

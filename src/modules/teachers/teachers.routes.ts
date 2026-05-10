@@ -10,7 +10,7 @@ import { assertTeacherCapacity } from '../../lib/plan-limits'
 import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
-import { renderTeacherCardPdf, renderTeacherContractPdf, renderTeacherProfilePdf, type CardSide } from '../pdf/pdf.service'
+import { renderTeacherCardPdf, renderTeacherContractPdf, renderTeacherProfilePdf } from '../pdf/pdf.service'
 import { ensureStaffForTeacher } from '../staff/staff.service'
 
 export const teachersRoutes = Router()
@@ -241,8 +241,7 @@ teachersRoutes.get(
   '/:id/card',
   requireRoles(UserRole.SUPER_ADMIN, ...managementRoles),
   asyncHandler(async (req, res) => {
-    const side = String(req.query.side ?? 'both') as CardSide
-    const buffer = await renderTeacherCardPdf(req.institutionId!, req.params.id, String(req.query.lang ?? 'FR'), side)
+    const buffer = await renderTeacherCardPdf(req.institutionId!, req.params.id, String(req.query.lang ?? 'FR'))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="carte-professeur-${req.params.id}.pdf"`)
     res.send(buffer)
