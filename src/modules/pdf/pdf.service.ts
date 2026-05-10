@@ -886,54 +886,312 @@ function certificateTitle(kind: string) {
   return 'CERTIFICAT DE SCOLARITÉ'
 }
 
+// ─── Card helpers (HTML-template–faithful layout) ────────────────────────────
+
+function drawCardHeader(
+  doc: PDFKit.PDFDocument,
+  params: { institutionName: string; acronym: string; year?: string | null; logo?: ImageSource; primaryColor: string; accentColor: string }
+) {
+  const { primaryColor: primary, accentColor: accent } = params
+  // Navy left block + accent right block, curved bottom-right corners
+  doc.rect(0, 0, 82, 40).fill(primary)
+  doc.rect(66, 0, 50, 40).fill(accent)
+  doc.rect(82, 0, CARD_WIDTH - 82, 40).fill('#FFFFFF')
+
+  // Circular logo
+  const logoX = 10, logoY = 6, logoD = 28
+  doc.save()
+  doc.circle(logoX + logoD / 2, logoY + logoD / 2, logoD / 2).clip()
+  try {
+    if (params.logo && (Buffer.isBuffer(params.logo) || fs.existsSync(params.logo))) {
+      doc.image(params.logo, logoX, logoY, { fit: [logoD, logoD], align: 'center', valign: 'center' })
+    } else {
+      doc.rect(logoX, logoY, logoD, logoD).fill(primary)
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9).text(params.acronym.slice(0, 3), logoX, logoY + logoD / 2 - 5, { width: logoD, align: 'center' })
+    }
+  } catch {
+    doc.rect(logoX, logoY, logoD, logoD).fill(primary)
+    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9).text(params.acronym.slice(0, 3), logoX, logoY + logoD / 2 - 5, { width: logoD, align: 'center' })
+  }
+  doc.restore()
+
+  // School name & year
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(7.5)
+  safeText(doc, params.institutionName.toUpperCase(), 97, 8, 138, { height: 16, lineGap: 0 })
+  doc.fillColor(accent).font('Helvetica').fontSize(6.5)
+  safeText(doc, `Année scolaire : ${params.year ?? 'en cours'}`, 97, 26, 138, { height: 9 })
+}
+
+function drawCardInfoRow(
+  doc: PDFKit.PDFDocument,
+  label: string, value: string,
+  x: number, y: number, width: number,
+  primary: string,
+  last = false
+) {
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8)
+  safeText(doc, label.toUpperCase(), x, y, width * 0.42, { height: 7 })
+  doc.fillColor(TEXT).font('Helvetica-Bold').fontSize(6.5)
+  safeText(doc, value, x + width * 0.44, y - 0.5, width * 0.56, { height: 8 })
+  if (!last) {
+    doc.moveTo(x, y + 10).lineTo(x + width, y + 10).strokeColor('#E5EBF3').lineWidth(0.5).stroke()
+  }
+}
+
+function drawStudentCardFront(doc: PDFKit.PDFDocument, params: {
+  institutionName: string; acronym: string; year?: string | null
+  lastName: string; firstName: string; matricule: string
+  className: string; birthDate?: string | null; status: string
+  qr: Buffer; cardLabel: string
+  logo?: ImageSource; photo?: ImageSource
+  primaryColor?: string | null; secondaryColor?: string | null; accentColor?: string | null
+}) {
+  const primary = normalizeColor(params.primaryColor, GREEN)
+  const accent = normalizeColor(params.accentColor, GOLD)
+
+  doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
+  drawCardHeader(doc, { institutionName: params.institutionName, acronym: params.acronym, year: params.year, logo: params.logo, primaryColor: primary, accentColor: accent })
+
+  // Photo — left side below header
+  drawPhoto(doc, 8, 44, 64, 76, params.photo, `${params.firstName} ${params.lastName}`)
+
+  // "CARTE SCOLAIRE" navy banner — right of photo
+  doc.rect(78, 42, CARD_WIDTH - 78, 16).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7).text(params.cardLabel.toUpperCase(), 82, 47, { width: CARD_WIDTH - 86, height: 9 })
+
+  // Info rows
+  const infoX = 80, infoW = CARD_WIDTH - infoX - 8
+  const rows = [
+    { label: 'Nom', value: params.lastName },
+    { label: 'Prénom', value: params.firstName },
+    { label: 'Matricule', value: params.matricule },
+    { label: 'Classe', value: params.className },
+    { label: 'Né(e) le', value: params.birthDate ?? '-' },
+    { label: 'Statut', value: params.status },
+  ]
+  rows.forEach((row, i) => {
+    drawCardInfoRow(doc, row.label, row.value, infoX, 62 + i * 12, infoW, primary, i === rows.length - 1)
+  })
+
+  // Decorative curved line above QR zone
+  doc.moveTo(66, 128).bezierCurveTo(100, 122, 140, 124, CARD_WIDTH, 122).strokeColor('#E5EBF3').lineWidth(1).stroke()
+
+  // QR code — bottom left
+  doc.roundedRect(8, 124, 28, 28, 4).fillAndStroke('#FFFFFF', '#D7E6FF')
+  doc.image(params.qr, 10, 126, { width: 24, height: 24 })
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(4.5).text('QR', 8, 153, { width: 28, align: 'center' })
+
+  // Signature box — bottom right
+  doc.roundedRect(CARD_WIDTH - 70, 124, 62, 22, 4).strokeColor('#C7CED8').lineWidth(1).stroke()
+  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(6).text('Signature / Cachet', CARD_WIDTH - 70, 130, { width: 62, align: 'center' })
+
+  // Bottom navy footer
+  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+}
+
+function drawStudentCardBack(doc: PDFKit.PDFDocument, params: {
+  institutionName: string
+  address?: string | null; phone?: string | null; email?: string | null
+  city?: string | null; country?: string | null
+  parentName?: string | null; parentPhone?: string | null
+  matricule: string
+  primaryColor?: string | null; accentColor?: string | null
+}) {
+  const primary = normalizeColor(params.primaryColor, GREEN)
+  const accent = normalizeColor(params.accentColor, GOLD)
+
+  doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
+
+  // Header
+  doc.rect(0, 0, CARD_WIDTH, 24).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(6.8)
+  safeText(doc, '🏫  INFORMATIONS ÉTABLISSEMENT', 14, 8, CARD_WIDTH - 28, { height: 9 })
+
+  // School name
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(7.5)
+  safeText(doc, params.institutionName.toUpperCase(), 14, 28, CARD_WIDTH - 28, { height: 12 })
+
+  // Contact rows
+  const rows = [
+    { icon: '📍', label: 'Adresse', value: display(params.address) },
+    { icon: '☎', label: 'Tél', value: display(params.phone) },
+    { icon: '✉', label: 'Email', value: display(params.email) },
+    { icon: '🌐', label: 'Ville', value: [params.city, params.country].filter(Boolean).join(', ') || '-' },
+  ]
+  rows.forEach((row, i) => {
+    const y = 44 + i * 12
+    doc.fillColor(TEXT).font('Helvetica-Bold').fontSize(5.8).text(row.icon, 14, y, { width: 12 })
+    doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text(row.label.toUpperCase(), 28, y, { width: 40, height: 7 })
+    doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(row.value, 70, y - 0.5, { width: CARD_WIDTH - 82, height: 8, ellipsis: true })
+    if (i < rows.length - 1) doc.moveTo(14, y + 10).lineTo(CARD_WIDTH - 14, y + 10).strokeColor('#E5EBF3').lineWidth(0.4).stroke()
+  })
+
+  // Divider
+  doc.moveTo(14, 94).lineTo(CARD_WIDTH - 14, 94).strokeColor('#2D7DF4').lineWidth(0.8).stroke()
+
+  // Parent section
+  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(6.2).text('👥  CONTACT PARENT / TUTEUR', 14, 98, { width: CARD_WIDTH - 28, height: 8 })
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text('Nom :', 14, 110, { width: 38, height: 7 })
+  doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(params.parentName ?? '-', 54, 110, { width: CARD_WIDTH - 66, height: 7, ellipsis: true })
+  doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text('Tél :', 14, 120, { width: 38, height: 7 })
+  doc.fillColor(TEXT).font('Helvetica').fontSize(6.2).text(params.parentPhone ?? '-', 54, 120, { width: CARD_WIDTH - 66, height: 7, ellipsis: true })
+
+  // Notice
+  doc.roundedRect(10, 130, CARD_WIDTH - 20, 14, 4).fill('#EAF3FF')
+  doc.fillColor('#06224A').font('Helvetica').fontSize(5.5).text('En cas de perte, merci de retourner cette carte à l\'établissement.', 14, 135, { width: CARD_WIDTH - 28, align: 'center', height: 7 })
+
+  // Footer
+  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+}
+
+function drawTeacherCardFront(doc: PDFKit.PDFDocument, params: {
+  institutionName: string; acronym: string; year?: string | null
+  lastName: string; firstName: string; matricule: string
+  subject: string; contractType: string; status: string
+  qr: Buffer; logo?: ImageSource; photo?: ImageSource
+  primaryColor?: string | null; secondaryColor?: string | null; accentColor?: string | null
+}) {
+  const primary = normalizeColor(params.primaryColor, GREEN)
+  const accent = normalizeColor(params.accentColor, GOLD)
+
+  doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
+  drawCardHeader(doc, { institutionName: params.institutionName, acronym: params.acronym, year: params.year, logo: params.logo, primaryColor: primary, accentColor: accent })
+
+  drawPhoto(doc, 8, 44, 64, 76, params.photo, `${params.firstName} ${params.lastName}`)
+
+  doc.rect(78, 42, CARD_WIDTH - 78, 16).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(7).text('CARTE PROFESSEUR', 82, 47, { width: CARD_WIDTH - 86, height: 9 })
+
+  const infoX = 80, infoW = CARD_WIDTH - infoX - 8
+  const rows = [
+    { label: 'Nom', value: params.lastName },
+    { label: 'Prénom', value: params.firstName },
+    { label: 'ID Personnel', value: params.matricule },
+    { label: 'Matière', value: params.subject },
+    { label: 'Contrat', value: params.contractType },
+    { label: 'Statut', value: params.status },
+  ]
+  rows.forEach((row, i) => {
+    drawCardInfoRow(doc, row.label, row.value, infoX, 62 + i * 12, infoW, primary, i === rows.length - 1)
+  })
+
+  doc.moveTo(66, 128).bezierCurveTo(100, 122, 140, 124, CARD_WIDTH, 122).strokeColor('#E5EBF3').lineWidth(1).stroke()
+
+  // QR code for attendance — prominent with label
+  doc.roundedRect(8, 120, 32, 32, 4).fillAndStroke('#FFFFFF', '#D7E6FF')
+  doc.image(params.qr, 10, 122, { width: 28, height: 28 })
+  doc.rect(8, 148, 32, 5).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(4).text('QR POINTAGE', 8, 149, { width: 32, align: 'center' })
+
+  doc.roundedRect(CARD_WIDTH - 70, 124, 62, 22, 4).strokeColor('#C7CED8').lineWidth(1).stroke()
+  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(6).text('Signature Direction', CARD_WIDTH - 70, 130, { width: 62, align: 'center' })
+
+  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+}
+
+function drawTeacherCardBack(doc: PDFKit.PDFDocument, params: {
+  institutionName: string
+  address?: string | null; phone?: string | null; email?: string | null
+  qr: Buffer; matricule: string
+  primaryColor?: string | null; accentColor?: string | null
+}) {
+  const primary = normalizeColor(params.primaryColor, GREEN)
+  const accent = normalizeColor(params.accentColor, GOLD)
+
+  doc.rect(0, 0, CARD_WIDTH, CARD_HEIGHT).fill('#FFFFFF')
+
+  // Header
+  doc.rect(0, 0, CARD_WIDTH, 24).fill(primary)
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(6.8)
+  safeText(doc, '⏱  POINTAGE DU PERSONNEL', 14, 8, CARD_WIDTH - 28, { height: 9 })
+
+  // Two-column layout: big QR left + info right
+  const qrSize = 72
+  const qrX = 14, qrY = 30
+  doc.roundedRect(qrX, qrY, qrSize, qrSize, 6).strokeColor('#2D7DF4').lineWidth(1.5).stroke()
+  doc.image(params.qr, qrX + 4, qrY + 4, { width: qrSize - 8, height: qrSize - 8 })
+  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(5.5).text('QR CODE POINTAGE', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' })
+
+  // Right column info
+  const infoX = qrX + qrSize + 12
+  const infoW = CARD_WIDTH - infoX - 10
+  doc.fillColor(TEXT).font('Helvetica').fontSize(6).text('Ce QR code est utilisé pour le pointage d\'entrée et de sortie.', infoX, 32, { width: infoW, height: 24 })
+  doc.moveTo(infoX, 58).lineTo(CARD_WIDTH - 10, 58).strokeColor('#2D7DF4').lineWidth(0.6).stroke()
+  doc.fillColor('#0F6BFF').font('Helvetica-Bold').fontSize(5.8).text('INFORMATIONS ÉTABLISSEMENT', infoX, 62, { width: infoW, height: 8 })
+  const contact = [
+    { label: 'Adresse', value: display(params.address) },
+    { label: 'Tél', value: display(params.phone) },
+    { label: 'Email', value: display(params.email) },
+  ]
+  contact.forEach((row, i) => {
+    const y = 74 + i * 12
+    doc.fillColor(primary).font('Helvetica-Bold').fontSize(5.8).text(row.label + ' :', infoX, y, { width: 28, height: 7 })
+    doc.fillColor(TEXT).font('Helvetica').fontSize(6).text(row.value, infoX + 30, y - 0.5, { width: infoW - 30, height: 8, ellipsis: true })
+  })
+
+  // Notice
+  doc.roundedRect(10, 110, CARD_WIDTH - 20, 14, 4).fill('#EAF3FF')
+  doc.fillColor('#06224A').font('Helvetica').fontSize(5.5).text('En cas de perte, contactez la Direction.', 14, 115, { width: CARD_WIDTH - 28, align: 'center', height: 7 })
+
+  // Matricule bar
+  doc.rect(10, 128, CARD_WIDTH - 20, 16, ).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(6.5).text(params.matricule, 14, 133, { width: CARD_WIDTH - 28, align: 'center' })
+
+  doc.rect(0, CARD_HEIGHT - 9, CARD_WIDTH, 9).fill(primary)
+  doc.fillColor(accent).font('Helvetica-Bold').fontSize(5).text('DOCUMENT GÉNÉRÉ PAR SORASCHOOL', 0, CARD_HEIGHT - 7, { width: CARD_WIDTH, align: 'center' })
+}
+
 export async function renderStudentCardPdf(institutionId: string, studentId: string, _lang = 'FR') {
   const student = await prisma.student.findFirst({
     where: { id: studentId, institutionId },
-    include: { classroom: true, institution: true }
+    include: {
+      classroom: true,
+      institution: true,
+      parents: { include: { parent: true }, take: 1 },
+    }
   })
   if (!student) throw notFound('Élève introuvable')
 
   const doc = new PDFDocument({ size: [CARD_WIDTH, CARD_HEIGHT], margin: 0 })
   const qr = await qrBuffer(`${env.PUBLIC_API_URL}/verify/student/${student.id}`)
-  const barcode = await barcodeBuffer(student.matricule)
-  const fullName = `${student.firstName} ${student.lastName}`
   const photo = await resolveImageSource(student.photoUrl, institutionId)
   const logo = await resolveImageSource(student.institution.logoUrl, institutionId)
-  drawCardFront(doc, {
+  const parent = student.parents[0]?.parent
+
+  drawStudentCardFront(doc, {
     institutionName: student.institution.name,
     acronym: student.institution.slug.toUpperCase(),
-    motto: student.institution.motto,
     year: student.institution.activeAcademicYearName,
-    fullName,
-    roleLabel: 'ÉLÈVE',
-    lineOneLabel: 'Classe',
-    lineTwoLabel: 'Matricule',
-    lineOne: `Classe : ${student.classroom?.name ?? 'Non affecté'}`,
-    lineTwo: `Matricule : ${student.matricule}`,
-    identifier: `ID ÉLÈVE : ${student.matricule}`,
+    lastName: student.lastName,
+    firstName: student.firstName,
+    matricule: student.matricule,
+    className: student.classroom?.name ?? 'Non affecté',
+    birthDate: student.birthDate ? formatDate(student.birthDate) : null,
+    status: studentStatusLabel(student.status),
     qr,
-    cardLabel: "CARTE D'IDENTITÉ SCOLAIRE",
+    cardLabel: "CARTE SCOLAIRE",
     logo,
+    photo,
     primaryColor: student.institution.primaryColor,
     secondaryColor: student.institution.secondaryColor,
     accentColor: student.institution.accentColor,
-    photo
   })
   doc.addPage({ size: [CARD_WIDTH, CARD_HEIGHT], margin: 0 })
-  drawCardBack(doc, {
+  drawStudentCardBack(doc, {
     institutionName: student.institution.name,
-    motto: student.institution.motto,
     address: student.institution.address,
     phone: student.institution.phone,
     email: student.institution.email,
-    website: student.institution.website,
-    officialText: "Cette carte est strictement personnelle. En cas de perte, veuillez contacter l'administration de l'établissement.",
-    statusLine: 'ÉLÈVE',
-    identifier: student.matricule,
-    barcode,
+    city: student.institution.city,
+    country: student.institution.country,
+    parentName: parent ? `${parent.firstName} ${parent.lastName}` : null,
+    parentPhone: parent?.phone ?? null,
+    matricule: student.matricule,
     primaryColor: student.institution.primaryColor,
-    secondaryColor: student.institution.secondaryColor,
-    accentColor: student.institution.accentColor
+    accentColor: student.institution.accentColor,
   })
   return collectPdf(doc)
 }
@@ -946,47 +1204,38 @@ export async function renderTeacherCardPdf(institutionId: string, teacherId: str
   if (!teacher) throw notFound('Professeur introuvable')
 
   const doc = new PDFDocument({ size: [CARD_WIDTH, CARD_HEIGHT], margin: 0 })
-  const qr = await qrBuffer(`${env.PUBLIC_API_URL}/verify/teacher/${teacher.id}`)
-  const barcode = await barcodeBuffer(teacher.matricule)
-  const fullName = `${teacher.firstName} ${teacher.lastName}`
-  const subject = teacher.assignments[0]?.subject.name ?? teacher.specialization ?? 'Général'
+  const qr = await qrBuffer(`${env.PUBLIC_API_URL}/api/staff/tablet-checkin/${teacher.id}`)
   const photo = await resolveImageSource(teacher.photoUrl, institutionId)
   const logo = await resolveImageSource(teacher.institution.logoUrl, institutionId)
-  drawCardFront(doc, {
+  const subject = teacher.assignments[0]?.subject.name ?? teacher.specialization ?? 'Général'
+
+  drawTeacherCardFront(doc, {
     institutionName: teacher.institution.name,
     acronym: teacher.institution.slug.toUpperCase(),
-    motto: teacher.institution.motto,
     year: teacher.institution.activeAcademicYearName,
-    fullName,
-    roleLabel: 'PROFESSEUR',
-    lineOneLabel: 'Discipline',
-    lineTwoLabel: 'Contrat',
-    lineOne: `Discipline : ${subject}`,
-    lineTwo: `Contrat : ${contractTypeLabel(teacher.contractType)}`,
-    identifier: `ID PROF : ${teacher.matricule}`,
+    lastName: teacher.lastName,
+    firstName: teacher.firstName,
+    matricule: teacher.matricule,
+    subject,
+    contractType: contractTypeLabel(teacher.contractType),
+    status: teacherStatusLabel(teacher.status),
     qr,
-    cardLabel: 'CARTE PROFESSEUR',
     logo,
+    photo,
     primaryColor: teacher.institution.primaryColor,
     secondaryColor: teacher.institution.secondaryColor,
     accentColor: teacher.institution.accentColor,
-    photo
   })
   doc.addPage({ size: [CARD_WIDTH, CARD_HEIGHT], margin: 0 })
-  drawCardBack(doc, {
+  drawTeacherCardBack(doc, {
     institutionName: teacher.institution.name,
-    motto: teacher.institution.motto,
     address: teacher.institution.address,
     phone: teacher.institution.phone,
     email: teacher.institution.email,
-    website: teacher.institution.website,
-    officialText: "Cette carte est strictement personnelle et valable pour l'année scolaire en cours. Elle doit être présentée sur demande et restituée à la fin du contrat.",
-    statusLine: contractTypeLabel(teacher.contractType),
-    identifier: teacher.matricule,
-    barcode,
+    qr,
+    matricule: teacher.matricule,
     primaryColor: teacher.institution.primaryColor,
-    secondaryColor: teacher.institution.secondaryColor,
-    accentColor: teacher.institution.accentColor
+    accentColor: teacher.institution.accentColor,
   })
   return collectPdf(doc)
 }
