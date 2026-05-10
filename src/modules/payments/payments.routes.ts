@@ -11,6 +11,7 @@ import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
 import { renderInvoicePdf, renderPaymentReceiptPdf } from '../pdf/pdf.service'
 import { notifyPaymentReceived } from '../../lib/notifications'
+import { emailPaymentReceipt } from '../../lib/email'
 import { getPlatformBranding } from '../../lib/platform-branding'
 import { parentAppUrl, shareParentDocument } from '../../lib/parent-document-share'
 import { sharedDocumentUrl } from '../../lib/shared-document-links'
@@ -291,6 +292,7 @@ paymentsRoutes.post(
           where: { studentId: student.id },
           include: { parent: { select: { phone: true, userId: true } } }
         })
+        const instFull = await prisma.institution.findUnique({ where: { id: payment.institutionId }, select: { name: true, currency: true } })
         for (const link of parentLinks) {
           notifyPaymentReceived({
             institutionId: payment.institutionId,
@@ -301,6 +303,20 @@ paymentsRoutes.post(
             parentPhone: link.parent.phone,
             appName: branding.appName
           }).catch(() => {})
+          const parentUser = link.parent.userId
+            ? await prisma.user.findUnique({ where: { id: link.parent.userId }, select: { email: true, firstName: true } })
+            : null
+          if (parentUser?.email && receiptNumber) {
+            emailPaymentReceipt({
+              to: parentUser.email,
+              studentName: `${student.firstName} ${student.lastName}`,
+              amount: payment.amount,
+              currency: institution?.currency ?? 'XOF',
+              receiptNumber,
+              institutionName: instFull?.name ?? branding.appName,
+              receiptUrl: `${process.env.PUBLIC_API_URL}/api/payments/${payment.id}/receipt`
+            }).catch(() => {})
+          }
         }
       }
     }
@@ -393,5 +409,125 @@ paymentsRoutes.post(
     })
 
     res.json(payload)
+  })
+)
+
+// ─── Fee Items ────────────────────────────────────────────────────────────────
+
+paymentsRoutes.get(
+  '/fee-items',
+  asyncHandler(async (req, res) => {
+    const feeItems = await prisma.feeItem.findMany({
+      where: {
+        institutionId: req.institutionId!,
+        isActive: req.query.active === 'false' ? undefined : true,
+        classroomId: req.query.classroomId ? String(req.query.classroomId) : undefined
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+    res.json({ feeItems })
+  })
+)
+
+paymentsRoutes.post(
+  '/fee-items',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const feeItem = await prisma.feeItem.create({
+      data: {
+        institutionId: req.institutionId!,
+        name: req.body.name,
+        amount: Number(req.body.amount),
+        dueDate: req.body.dueDate ? new Date(req.body.dueDate) : undefined,
+        classroomId: req.body.classroomId ?? undefined,
+        isActive: req.body.isActive ?? true
+      }
+    })
+    res.status(201).json({ feeItem })
+  })
+)
+
+paymentsRoutes.patch(
+  '/fee-items/:id',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const item = await prisma.feeItem.findFirst({ where: { id: req.params.id, institutionId: req.institutionId! } })
+    if (!item) throw notFound('Frais scolaire introuvable')
+    const feeItem = await prisma.feeItem.update({
+      where: { id: item.id },
+      data: {
+        name: req.body.name ?? item.name,
+        amount: req.body.amount !== undefined ? Number(req.body.amount) : item.amount,
+        dueDate: req.body.dueDate !== undefined ? (req.body.dueDate ? new Date(req.body.dueDate) : null) : item.dueDate,
+        classroomId: req.body.classroomId !== undefined ? (req.body.classroomId || null) : item.classroomId,
+        isActive: req.body.isActive ?? item.isActive
+      }
+    })
+    res.json({ feeItem })
+  })
+)
+
+paymentsRoutes.delete(
+  '/fee-items/:id',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const item = await prisma.feeItem.findFirst({ where: { id: req.params.id, institutionId: req.institutionId! } })
+    if (!item) throw notFound('Frais scolaire introuvable')
+    await prisma.feeItem.update({ where: { id: item.id }, data: { isActive: false } })
+    res.json({ ok: true })
+  })
+)
+
+// ─── Bulk invoice generation from fee items ──────────────────────────────────
+
+paymentsRoutes.post(
+  '/fee-items/:id/generate-invoices',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const item = await prisma.feeItem.findFirst({ where: { id: req.params.id, institutionId: req.institutionId! } })
+    if (!item) throw notFound('Frais scolaire introuvable')
+
+    const whereStudent = item.classroomId
+      ? { institutionId: req.institutionId!, classroomId: item.classroomId, status: 'ACTIVE' as const }
+      : { institutionId: req.institutionId!, status: 'ACTIVE' as const }
+
+    const students = await prisma.student.findMany({ where: whereStudent, select: { id: true, firstName: true, lastName: true } })
+
+    const institution = await prisma.institution.findUnique({ where: { id: req.institutionId! } })
+    const prefix = `FRAIS-${new Date().getFullYear()}-`
+
+    let created = 0
+    let skipped = 0
+
+    for (const student of students) {
+      const existing = await prisma.invoice.findFirst({
+        where: { institutionId: req.institutionId!, studentId: student.id, title: item.name }
+      })
+      if (existing) { skipped++; continue }
+
+      const lastInvoice = await prisma.invoice.findFirst({
+        where: { institutionId: req.institutionId!, number: { startsWith: prefix } },
+        orderBy: { number: 'desc' },
+        select: { number: true }
+      })
+      const seq = lastInvoice ? (parseInt(lastInvoice.number.slice(prefix.length), 10) || 0) + 1 : 1
+      const number = `${prefix}${String(seq).padStart(5, '0')}`
+
+      await prisma.invoice.create({
+        data: {
+          institutionId: req.institutionId!,
+          studentId: student.id,
+          number,
+          title: item.name,
+          totalAmount: item.amount,
+          paidAmount: 0,
+          status: 'ISSUED',
+          dueDate: item.dueDate
+        }
+      })
+      created++
+    }
+
+    res.json({ ok: true, created, skipped, total: students.length, institutionName: institution?.name })
   })
 )

@@ -14,6 +14,7 @@ import { authenticate } from '../../middlewares/auth'
 import { requireRoles, requireTenantUser } from '../../middlewares/rbac'
 import { validate } from '../../middlewares/validate'
 import { renderEnrollmentFormPdf, renderStudentCardPdf } from '../pdf/pdf.service'
+import { emailWelcome } from '../../lib/email'
 
 export const studentsRoutes = Router()
 studentsRoutes.use(authenticate, requireTenantUser)
@@ -611,6 +612,23 @@ studentsRoutes.post(
         `${displayName(req.user)} a créé une inscription à valider.`,
         { studentId: student!.id, enrollmentStatus }
       )
+    }
+
+    // Send welcome email to parent(s)
+    if (student?.parents?.length) {
+      const institutionForEmail = await prisma.institution.findUnique({ where: { id: req.institutionId! }, select: { name: true } })
+      for (const link of student.parents) {
+        const emailAddr = link.parent.email
+        if (emailAddr) {
+          emailWelcome({
+            to: emailAddr,
+            firstName: link.parent.firstName,
+            institutionName: institutionForEmail?.name ?? 'votre établissement',
+            appName: process.env.APP_NAME ?? 'SoraSchool',
+            loginUrl: process.env.FRONTEND_URL ?? 'https://app.soraschool.ci'
+          }).catch(() => {})
+        }
+      }
     }
 
     res.status(201).json({

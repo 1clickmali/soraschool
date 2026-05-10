@@ -21,6 +21,7 @@ import { validate } from '../../middlewares/validate'
 import { logger } from '../../lib/logger'
 import { getPlatformBranding } from '../../lib/platform-branding'
 import { sendOtpSms } from '../../lib/sms'
+import { emailPasswordReset } from '../../lib/email'
 
 export const authRoutes = Router()
 
@@ -167,6 +168,20 @@ authRoutes.post(
     })
 
     const smsSent = await sendOtpSms(phone, code, branding.appName)
+
+    // Send OTP by email as fallback when SMS is mocked or fails
+    const userForEmail = await prisma.user.findFirst({
+      where: { phone: { in: phoneLookupVariants(req.body.phone) }, isActive: true },
+      select: { email: true, firstName: true }
+    })
+    if (userForEmail?.email) {
+      emailPasswordReset({
+        to: userForEmail.email,
+        firstName: userForEmail.firstName ?? 'Utilisateur',
+        otp: code,
+        appName: branding.appName
+      }).catch(() => {})
+    }
 
     // Always log OTP when MOCK_SMS is active (regardless of NODE_ENV or smsSent)
     if (env.MOCK_SMS || env.OTP_LOG_CODES) {

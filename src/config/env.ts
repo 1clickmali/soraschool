@@ -29,7 +29,14 @@ const envSchema = z.object({
   AT_USERNAME: z.string().optional(),
   AT_SENDER_ID: z.string().optional(),
   // Logue les codes OTP dans les logs serveur (utile pour Railway logs en production pendant les tests)
-  OTP_LOG_CODES: z.coerce.boolean().default(false)
+  OTP_LOG_CODES: z.coerce.boolean().default(false),
+  // SMTP (optionnel — emails transactionnels)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  SMTP_SECURE: z.coerce.boolean().default(false)
 })
 
 export const env = envSchema.parse(process.env)

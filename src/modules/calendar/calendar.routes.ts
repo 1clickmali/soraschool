@@ -22,6 +22,8 @@ import {
   drawProfessionalHeader,
   drawSimpleTable
 } from '../pdf/pdf-layout'
+import { sendSms } from '../../lib/sms-internal'
+import { sendEmail } from '../../lib/email'
 
 export const calendarRoutes = Router()
 calendarRoutes.use(authenticate)
@@ -411,8 +413,11 @@ async function notifyUsersForEvent(event: {
   startsAt: Date
   status: CalendarItemStatus
   notifyApp: boolean
+  notifySms?: boolean
+  notifyEmail?: boolean
 }) {
-  if (!event.notifyApp || event.status !== CalendarItemStatus.PUBLISHED) return
+  if (event.status !== CalendarItemStatus.PUBLISHED) return
+  if (!event.notifyApp && !event.notifySms && !event.notifyEmail) return
   const userIds = new Set<string>()
 
   if (event.classroomIds.length) {
@@ -450,16 +455,42 @@ async function notifyUsersForEvent(event: {
 
   const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full', timeStyle: 'short' }).format(event.startsAt)
   const titlePrefix = event.type === CalendarEventType.EXAM ? 'Rappel examen' : event.type === CalendarEventType.HOMEWORK ? 'Rappel devoir' : 'Agenda scolaire'
-  if (userIds.size) {
+  const notifTitle = `${titlePrefix} : ${event.title}`
+  const notifBody = `${event.title} est prévu le ${date}.`
+
+  if (event.notifyApp && userIds.size) {
     await prisma.notification.createMany({
       data: [...userIds].slice(0, 500).map((userId) => ({
         institutionId: event.institutionId,
         userId,
         level: alertEventTypes.has(event.type) ? NotificationLevel.WARNING : NotificationLevel.INFO,
-        title: `${titlePrefix} : ${event.title}`,
-        body: `${event.title} est prévu le ${date}.`
+        title: notifTitle,
+        body: notifBody
       }))
     })
+  }
+
+  if ((event.notifySms || event.notifyEmail) && userIds.size) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: [...userIds] }, isActive: true },
+      select: { phone: true, email: true, firstName: true }
+    })
+    const institution = await prisma.institution.findUnique({ where: { id: event.institutionId }, select: { name: true } })
+    const appName = institution?.name ?? 'SoraSchool'
+
+    for (const u of users) {
+      if (event.notifySms && u.phone) {
+        sendSms(u.phone, `${appName} - ${notifTitle}. ${notifBody}`).catch(() => {})
+      }
+      if (event.notifyEmail && u.email) {
+        sendEmail({
+          to: u.email,
+          subject: `${notifTitle} — ${appName}`,
+          html: `<div style="font-family:Arial,sans-serif"><h2 style="color:#064E3B">${appName}</h2><p>Bonjour ${u.firstName ?? ''},</p><p>${notifBody}</p></div>`,
+          text: notifBody
+        }).catch(() => {})
+      }
+    }
   }
 }
 
@@ -601,7 +632,7 @@ calendarRoutes.post(
       },
       include: { institution: true, establishment: true, teacher: true, createdBy: true }
     })
-    await notifyUsersForEvent(event)
+    await notifyUsersForEvent({ ...event, notifySms: event.notifySms, notifyEmail: event.notifyEmail })
     res.status(201).json({ event: (await enrichEvents([event]))[0] })
   })
 )

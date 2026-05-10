@@ -11,6 +11,8 @@ import { validate } from '../../middlewares/validate'
 import { renderReportCardPdf, renderStudentCertificatePdf } from '../pdf/pdf.service'
 import { parentAppUrl, shareParentDocument } from '../../lib/parent-document-share'
 import { sharedDocumentUrl } from '../../lib/shared-document-links'
+import { notifyGrade } from '../../lib/notifications'
+import { emailGradeAlert } from '../../lib/email'
 
 export const gradesRoutes = Router()
 gradesRoutes.use(authenticate, requireTenantUser)
@@ -337,6 +339,47 @@ gradesRoutes.post(
         appreciation: req.body.appreciation ?? req.body.comment
       }
     })
+
+    // Notify parents asynchronously
+    ;(async () => {
+      try {
+        const [student, subject] = await Promise.all([
+          prisma.student.findUnique({
+            where: { id: req.body.studentId },
+            include: { classroom: true, parents: { include: { parent: { select: { phone: true, userId: true, firstName: true, email: true } } } } }
+          }),
+          prisma.subject.findUnique({ where: { id: req.body.subjectId }, select: { name: true } })
+        ])
+        if (!student || !subject) return
+        const studentName = `${student.firstName} ${student.lastName}`
+        const className = student.classroom?.name ?? ''
+        const appName = process.env.APP_NAME ?? 'SoraSchool'
+        for (const link of student.parents ?? []) {
+          notifyGrade({
+            institutionId: req.institutionId!,
+            studentName,
+            subject: subject.name,
+            score: grade.score,
+            maxScore: grade.maxScore,
+            parentUserId: link.parent.userId ?? undefined,
+            parentPhone: link.parent.phone
+          }).catch(() => {})
+          if (link.parent.email) {
+            emailGradeAlert({
+              to: link.parent.email,
+              parentName: link.parent.firstName,
+              studentName,
+              subject: subject.name,
+              score: grade.score,
+              maxScore: grade.maxScore,
+              className,
+              appName
+            }).catch(() => {})
+          }
+        }
+      } catch { /* non-blocking */ }
+    })()
+
     res.status(201).json({ grade })
   })
 )

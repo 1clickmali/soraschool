@@ -154,6 +154,107 @@ disciplineRoutes.get(
   })
 )
 
+// ─── Discipline Rules ─────────────────────────────────────────────────────────
+
+disciplineRoutes.get(
+  '/rules',
+  asyncHandler(async (req, res) => {
+    const rules = await prisma.disciplineRule.findMany({
+      where: { institutionId: req.institutionId!, isActive: req.query.active === 'false' ? undefined : true },
+      orderBy: [{ kind: 'asc' }, { points: 'asc' }]
+    })
+    res.json({ rules })
+  })
+)
+
+disciplineRoutes.post(
+  '/rules',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  validate(
+    z.object({
+      body: z.object({
+        kind: z.string().min(1),
+        title: z.string().min(2),
+        points: z.number().int(),
+        isActive: z.boolean().default(true)
+      })
+    })
+  ),
+  asyncHandler(async (req, res) => {
+    const rule = await prisma.disciplineRule.create({
+      data: {
+        institutionId: req.institutionId!,
+        kind: req.body.kind,
+        title: req.body.title,
+        points: req.body.points,
+        isActive: req.body.isActive
+      }
+    })
+    res.status(201).json({ rule })
+  })
+)
+
+disciplineRoutes.patch(
+  '/rules/:id',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const rule = await prisma.disciplineRule.findFirst({ where: { id: req.params.id, institutionId: req.institutionId! } })
+    if (!rule) throw notFound('Règle introuvable')
+    const updated = await prisma.disciplineRule.update({
+      where: { id: rule.id },
+      data: {
+        kind: req.body.kind ?? rule.kind,
+        title: req.body.title ?? rule.title,
+        points: req.body.points ?? rule.points,
+        isActive: req.body.isActive ?? rule.isActive
+      }
+    })
+    res.json({ rule: updated })
+  })
+)
+
+disciplineRoutes.delete(
+  '/rules/:id',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const rule = await prisma.disciplineRule.findFirst({ where: { id: req.params.id, institutionId: req.institutionId! } })
+    if (!rule) throw notFound('Règle introuvable')
+    await prisma.disciplineRule.update({ where: { id: rule.id }, data: { isActive: false } })
+    res.json({ ok: true })
+  })
+)
+
+// ─── Discipline Record detail ─────────────────────────────────────────────────
+
+disciplineRoutes.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const record = await prisma.disciplineRecord.findFirst({
+      where: { id: req.params.id, institutionId: req.institutionId! },
+      include: { student: { include: { classroom: true } }, teacher: true }
+    })
+    if (!record) throw notFound('Signalement introuvable')
+    res.json({ record })
+  })
+)
+
+disciplineRoutes.delete(
+  '/:id',
+  requireRoles(UserRole.DIRECTOR, UserRole.ADMINISTRATION),
+  asyncHandler(async (req, res) => {
+    const record = await prisma.disciplineRecord.findFirst({ where: { id: req.params.id, institutionId: req.institutionId! } })
+    if (!record) throw notFound('Signalement introuvable')
+    if (record.points !== 0) {
+      await prisma.disciplineScore.updateMany({
+        where: { institutionId: req.institutionId!, studentId: record.studentId },
+        data: { score: { decrement: record.points } }
+      })
+    }
+    await prisma.disciplineRecord.delete({ where: { id: record.id } })
+    res.json({ ok: true })
+  })
+)
+
 function mapDisciplineKind(type?: string) {
   switch (type) {
     case 'GOOD_POINT':
